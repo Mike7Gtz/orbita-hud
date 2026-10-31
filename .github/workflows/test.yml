@@ -1,0 +1,15 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime test dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-numpy conky-all liblua5.3-0
+      - name: Test sampling and providers
+        run: python3 -m unittest discover -s tests -v
+      - name: Parse Conky configurations
+        run: python3 scripts/check_lua.py
+      - name: Render real Lua drawing code
+        run: python3 scripts/preview.py /tmp/orbita-preview.png

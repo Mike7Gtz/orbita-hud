@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+references/
+*.state
+*.log
+*.pid
+*.lock
+usage-private*.json

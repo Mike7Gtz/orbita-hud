@@ -1,0 +1,24 @@
+# Configuración personal: ~/.config/orbita-hud/config.toml
+[appearance]
+side = "right" # left o right; refleja la geometría sin invertir las letras
+monitor = "" # vacío = monitor principal de XRandR, nunca tamaño de un video
+top_margin = 18
+bottom_margin = 18
+clock_scale = 0.82
+fps = 25
+opacity = 0 # reserva para el fondo; los dibujos conservan su contraste
+language = "es"
+
+[audio]
+enabled = true
+monitor = "" # vacío sigue la salida de sonido predeterminada; jamás micrófono
+bars = 96
+gain = 1.0
+
+[usage]
+interval_seconds = 180
+stale_seconds = 900
+codex_enabled = true
+codex_socket = ""
+claude_file = ""
+claude_command = [] # lista de argumentos de un proveedor JSON local opcional

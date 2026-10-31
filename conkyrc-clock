@@ -1,0 +1,40 @@
+-- Órbita HUD · reloj y espectro · Onocru
+local src = debug.getinfo(1,'S').source:sub(2)
+local root = src:match('^(.*)/[^/]+$')
+local geometry = dofile(root..'/conky/layout.lua')('clock')
+conky.config = {
+    alignment = 'middle_middle',
+    gap_x = 0,
+    gap_y = 0,
+    minimum_width = 800,
+    minimum_height = 800,
+    maximum_width = 800,
+    xinerama_head = 0,
+    background = false,
+    update_interval = 0.04,
+    double_buffer = true,
+    use_xft = true,
+    font = 'DejaVu Sans:size=1',
+    own_window = true,
+    own_window_type = 'desktop',
+    own_window_class = 'OrbitaHUD',
+    own_window_title = 'Órbita HUD — Reloj',
+    own_window_hints = 'undecorated,below,sticky,skip_taskbar,skip_pager',
+    own_window_transparent = true,
+    own_window_argb_visual = true,
+    own_window_argb_value = 0,
+    draw_shades = false,
+    draw_outline = false,
+    draw_borders = false,
+    border_inner_margin = 0,
+    border_outer_margin = 0,
+    lua_load = root..'/conky/render.lua',
+    lua_startup_hook = 'orbita_start',
+    lua_draw_hook_post = 'orbita_clock',
+};
+conky.config.minimum_width = geometry.width or 800
+conky.config.minimum_height = geometry.height or 800
+conky.config.maximum_width = geometry.width or 800
+conky.config.xinerama_head = geometry.monitor or 0
+conky.config.update_interval = 1/(geometry.fps or 25)
+conky.text = [[ ]]
