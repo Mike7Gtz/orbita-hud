@@ -12,7 +12,7 @@ from . import __version__
 def normalize_window(value):
     if not isinstance(value, dict):
         return {'used': None, 'reset': None, 'minutes': None}
-    percent = value.get('usedPercent', value.get('used_percent', value.get('utilization')))
+    percent = value.get('usedPercent', value.get('used_percent', value.get('used_percentage', value.get('utilization'))))
     if not isinstance(percent, (int, float)) or isinstance(percent, bool) or not math.isfinite(percent):
         percent = None
     reset = value.get('resetsAt', value.get('resets_at'))
@@ -96,16 +96,21 @@ def claude_usage(cfg):
         source = 'external_provider'
     else:
         name = settings['claude_file']
-        path = Path(name).expanduser() if name else Path(os.environ.get('XDG_CONFIG_HOME', Path.home()/'.config'))/'orbita-hud/claude-usage.json'
+        path = Path(name).expanduser() if name else Path.home()/'.claude/usage.json'
+        if not name and not path.exists():
+            path=Path(os.environ.get('XDG_CONFIG_HOME', Path.home()/'.config'))/'orbita-hud/claude-usage.json'
         if not path.exists():
             raise RuntimeError('claude_not_connected')
         data = json.loads(path.read_text())
         source = 'imported'
     if not isinstance(data, dict):
         raise ValueError('claude_invalid_reading')
-    return {'source': source, 'observed_at': data.get('observed_at', 0),
-            'session': normalize_window(data.get('session') or data.get('five_hour')),
-            'weekly': normalize_window(data.get('weekly') or data.get('seven_day'))}
+    if data.get('source')=='claude-code-statusline': source='claude-code-statusline'
+    windows=data.get('rate_limits',data)
+    if not isinstance(windows,dict): raise ValueError('claude_invalid_windows')
+    return {'source': source, 'observed_at': data.get('observed_at',data.get('updated_at',0)),
+            'session': normalize_window(windows.get('session') or windows.get('five_hour')),
+            'weekly': normalize_window(windows.get('weekly') or windows.get('seven_day'))}
 
 
 def flatten(name, data, stale_seconds=900, now=None):

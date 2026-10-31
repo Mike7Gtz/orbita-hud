@@ -24,7 +24,9 @@ def main():
     p.add_argument('--height', type=int, default=1080)
     p.add_argument('--panel-top', type=int, default=25)
     p.add_argument('--panel-bottom', type=int, default=0)
+    p.add_argument('--percent', type=float, help='Porcentaje de ejemplo común 0–100 para los medidores y temperaturas')
     args=p.parse_args()
+    if args.percent is not None and not 0<=args.percent<=100: p.error('--percent debe estar entre 0 y 100')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     cfg=load('/nonexistent'); cfg['appearance']['side']=args.side
     screen=dict(x=0,y=0,width=args.width,height=args.height,index=0)
@@ -42,9 +44,10 @@ function conky_preview()
  local s=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,{args.width},{args.height})
  local cr=cairo_create(s)
  cairo_set_source_rgb(cr,0.025,0.055,0.095); cairo_paint(cr)
- local t={{['gpu.temperature']='54',['cpu.temperature']='48',['gpu.load']='17',['cpu.load']='9',['ram.percent']='13',['vram.percent']='11'}}
+ local t={{['gpu.temperature']='{args.percent if args.percent is not None else 54}',['cpu.temperature']='{args.percent if args.percent is not None else 48}',['gpu.load']='{args.percent if args.percent is not None else 17}',['cpu.load']='{args.percent if args.percent is not None else 9}',['ram.percent']='{args.percent if args.percent is not None else 13}',['vram.percent']='{args.percent if args.percent is not None else 11}',['gpu.temperature.scale_max']='100',['cpu.temperature.scale_max']='100'}}
  local u={{['chatgpt.stale']='0',['claude.stale']='0',['chatgpt.observed_at']='1793389320',['claude.observed_at']='1793389320',['chatgpt.source']='Codex / ChatGPT',['claude.source']='example',
- ['chatgpt.session.used']='68',['chatgpt.weekly.used']='42',['claude.session.used']='53',['claude.weekly.used']='26'}}
+ ['chatgpt.session.used']='68',['chatgpt.weekly.used']='42',['claude.session.used']='53',['claude.weekly.used']='26',
+ ['chatgpt.session.reset']='1793397600',['chatgpt.weekly.reset']='1793662920',['claude.session.reset']='1793405280',['claude.weekly.reset']='1793914920'}}
  local a={{available='1',bands={lua_string(bands)}}}
  cairo_save(cr); cairo_translate(cr,{(args.width-clock['width'])/2},{(args.height-clock['height'])/2}); orbita_draw_clock(cr,{clock['width']},{clock['height']},t,u,a,1793389320); cairo_restore(cr)
  cairo_save(cr); cairo_translate(cr,{panel_x},{panel['gap_y']})

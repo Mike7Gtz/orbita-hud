@@ -81,7 +81,8 @@ class TelemetryTests(unittest.TestCase):
         with patch('orbita_hud.telemetry.read',side_effect=['cpu 100 0 0 900 0 0 0 0','cpu 130 0 0 970 0 0 0 0']), \
              patch('orbita_hud.telemetry.cpu_temperature',return_value=(40,'test')), \
              patch('orbita_hud.telemetry.memory_metrics',return_value={}), \
-             patch('orbita_hud.telemetry.gpu_metrics',return_value={}):
+             patch('orbita_hud.telemetry.gpu_metrics',return_value={}), \
+             patch('orbita_hud.telemetry.temperature_limits',return_value={}):
             self.assertIsNone(c.sample()['cpu.load'])
             self.assertEqual(c.sample()['cpu.load'],30)
 

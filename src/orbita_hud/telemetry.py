@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import time
@@ -93,11 +94,59 @@ def memory_metrics(text=None):
             'ram.percent': 100 * (total - available) / total if total and available is not None else None}
 
 
+def nvidia_operating_limit(text):
+    values={}
+    for line in text.splitlines():
+        match=re.match(r'\s*(GPU [^:]+?)\s*:\s*(-?\d+(?:\.\d+)?)\s*C\s*$',line)
+        if match: values[match.group(1).strip()]=float(match.group(2))
+    absolute=values.get('GPU Max Operating Temp')
+    if absolute is None:
+        current=values.get('GPU Current Temp')
+        margin=values.get('GPU Current T.Limit Temp',values.get('GPU T.Limit Temp'))
+        threshold=values.get('GPU Max Operating T.Limit Temp Specification',values.get('GPU Max Operating T.Limit Temp',0))
+        if current is not None and margin is not None:
+            absolute=current+margin-threshold
+    return absolute if absolute is not None and 40<=absolute<=150 else None
+
+
+def temperature_limits(root=Path('/sys/class/hwmon')):
+    cpu=[]; gpu=[]
+    for chip in root.glob('hwmon*'):
+        name=read(chip/'name').lower()
+        if name not in {'k10temp','coretemp','zenpower','amdgpu','nouveau','i915','xe'}: continue
+        target=cpu if name in {'k10temp','coretemp','zenpower'} else gpu
+        for path in chip.glob('temp*_crit'):
+            value=sensor_value(path)
+            if value is not None and 40<=value<=150: target.append(value)
+    result={'cpu.temperature.limit':min(cpu) if cpu else None,
+            'gpu.temperature.limit':min(gpu) if gpu else None}
+    if shutil.which('nvidia-smi'):
+        try:
+            query=subprocess.run(['nvidia-smi','-q','-d','TEMPERATURE','-i','0'],capture_output=True,text=True,timeout=2)
+            if query.returncode==0:
+                limit=nvidia_operating_limit(query.stdout)
+                if limit is not None: result['gpu.temperature.limit']=limit
+        except (OSError,subprocess.TimeoutExpired): pass
+    return result
+
+
+def apply_temperature_scales(values,cfg):
+    for component in ('cpu','gpu'):
+        override=cfg['temperature'][component+'_max_c']
+        reported=values.get(component+'.temperature.limit')
+        maximum=override or reported or cfg['temperature']['fallback_max_c']
+        values[component+'.temperature.scale_max']=maximum
+        values[component+'.temperature.scale_source']='configured' if override else 'hardware' if reported else 'fallback'
+    return values
+
+
 class Collector:
     def __init__(self):
         self.previous = None
         self.gpu = {}
         self.last_gpu = 0
+        self.limits={}
+        self.last_limits=0
 
     def sample(self):
         line = read('/proc/stat').splitlines()[0]
@@ -112,5 +161,8 @@ class Collector:
         if time.monotonic() - self.last_gpu >= 3:
             self.gpu = gpu_metrics()
             self.last_gpu = time.monotonic()
+        if time.monotonic()-self.last_limits>=60:
+            self.limits=temperature_limits()
+            self.last_limits=time.monotonic()
         return {'generated_at': time.time(), 'cpu.load': load, 'cpu.temperature': temp,
-                'cpu.source': source, **memory_metrics(), **self.gpu}
+                'cpu.source': source, **memory_metrics(), **self.gpu, **self.limits}

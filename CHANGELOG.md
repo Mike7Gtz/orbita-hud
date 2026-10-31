@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.1.3
+
+- Porcentaje normalizado sobre la longitud visible tras recortes, incluidas marcas parciales: un 50% pinta la mitad de lo que se ve.
+- Temperaturas de CPU y GPU progresivas de azul a rojo; el tramo pendiente queda gris. Máximos de hardware/configuración y escala de respaldo documentada.
+- Cuenta regresiva de sesión y reinicio semanal basados en `resets_at`.
+- Puente de línea de estado de Claude Code: stdin -> `~/.claude/usage.json`, instalado mediante `~/.claude/usage-statusline.sh`. Preserva preferencias y fecha de JSON repetidos.
+- Lectura del archivo Claude cada segundo e indicador de antigüedad. Compatibilidad con `used_percentage` / `updated_at`.
+- Pruebas matemáticas y de píxeles a 0/50/100%, temperaturas, cuenta regresiva y puente Claude con datos sintéticos.
+
 ## 0.1.2
 
 Corrección de [#2](https://github.com/Mike7Gtz/orbita-hud/issues/2): recuperar la composición entrelazada de la referencia, que 0.1.1 había convertido en semicírculos separados.

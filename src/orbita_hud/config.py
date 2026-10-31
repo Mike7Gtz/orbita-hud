@@ -1,11 +1,13 @@
 from pathlib import Path
 import ast
+import math
 import os
 import re
 import subprocess
 import tomllib
 
 DEFAULT = {
+    'temperature': {'cpu_max_c': 0, 'gpu_max_c': 0, 'fallback_max_c': 100},
     'appearance': {'side': 'right', 'monitor': '', 'top_margin': 18, 'bottom_margin': 18,
                    'clock_scale': 0.82, 'opacity': 0, 'language': 'es', 'fps': 25},
     'audio': {'enabled': True, 'monitor': '', 'bars': 96, 'gain': 1.0},
@@ -45,6 +47,11 @@ def load(path=None):
     cfg['usage']['interval_seconds'] = max(60, int(cfg['usage']['interval_seconds']))
     if not isinstance(cfg['usage']['claude_command'], list):
         raise ValueError('usage.claude_command debe ser una lista de argumentos')
+    for key in ('cpu_max_c','gpu_max_c','fallback_max_c'):
+        value=float(cfg['temperature'][key])
+        if not math.isfinite(value) or value<0 or value>200 or (key=='fallback_max_c' and value==0):
+            raise ValueError('Escala térmica inválida: '+key)
+        cfg['temperature'][key]=value
     return cfg
 
 

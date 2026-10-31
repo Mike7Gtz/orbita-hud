@@ -8,7 +8,7 @@ import sys
 import threading
 import time
 from .config import load, layout, runtime_dir, write_state
-from .telemetry import Collector
+from .telemetry import Collector, apply_temperature_scales
 from .audio import AudioWorker
 from .quotas import codex_usage, claude_usage, flatten
 
@@ -107,8 +107,15 @@ def run():
             signal.signal(sig, lambda *_: stop.set())
         def usage():
             providers = {'chatgpt': None, 'claude': None}
+            next_codex=0
+            next_claude=0
             while not stop.is_set():
                 for name in providers:
+                    current=time.monotonic()
+                    if name=='chatgpt' and current<next_codex: continue
+                    if name=='claude' and current<next_claude: continue
+                    if name=='chatgpt': next_codex=current+cfg['usage']['interval_seconds']
+                    if name=='claude': next_claude=current+(cfg['usage']['interval_seconds'] if cfg['usage']['claude_command'] else 1)
                     try:
                         if name == 'chatgpt':
                             if not cfg['usage']['codex_enabled']:
@@ -122,7 +129,7 @@ def run():
                 for name, data in providers.items():
                     values.update(flatten(name, data or {}, cfg['usage']['stale_seconds']))
                 write_state(folder/'usage.state', values)
-                stop.wait(cfg['usage']['interval_seconds'])
+                stop.wait(1)
         audio = AudioWorker(cfg, folder, stop)
         audio.start()
         thread = threading.Thread(target=usage, name='orbita-quotas', daemon=True)
@@ -145,7 +152,7 @@ def run():
                             audio.close()
                     except (ValueError, OSError):
                         pass
-                values = collector.sample()
+                values = apply_temperature_scales(collector.sample(),cfg)
                 values['side'] = cfg['appearance']['side']
                 write_state(folder/'telemetry.state', values)
                 if time.monotonic() >= next_layout:

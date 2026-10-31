@@ -4,14 +4,16 @@
 
 ![Vista de ejemplo: porcentajes ilustrativos, no lecturas en vivo](assets/preview-right.png)
 
-Versión **0.1.2**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
+[Prueba visual con todos los medidores al 50% del recorrido visible](assets/progress-50.png).
+
+Versión **0.1.3**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
 
 ## Qué incluye
 
 - Reloj de 24 horas con fecha y año en español; tres anillos de avance: horas, minutos y segundos.
 - Halo de 96 bandas que reacciona al **sonido de salida** de la computadora: música, juegos, videos o cualquier aplicación. Sigue la salida predeterminada y no escucha el micrófono. En silencio se atenúa.
 - GPU arriba: temperatura, carga global y VRAM utilizada. CPU abajo: temperatura, carga global y RAM general utilizada.
-- Dos arcos por suscripción: ventana corta y semana, con el porcentaje usado junto a cada etiqueta. Sin barras horizontales.
+- Dos arcos por suscripción: ventana corta y semana, con porcentaje usado y cuenta regresiva al reinicio real. Sin barras horizontales.
 - Dos módulos independientes en Conky Manager 2: `conkyrc-clock` y `conkyrc-panel`.
 - Escala proporcional al área útil del monitor principal, conservando círculos redondos y descontando el menú/panel del escritorio. El panel lateral se puede colocar a izquierda o derecha y se reajusta automáticamente cuando cambia el espacio disponible.
 
@@ -74,15 +76,15 @@ Un dock que no reserve espacio en el gestor de ventanas (por ejemplo, con oculta
 
 **ChatGPT / Codex:** el proveedor usa la sesión de tu CLI oficial `codex` y el método de solo lectura `account/rateLimits/read` del [App Server documentado por OpenAI](https://learn.chatgpt.com/docs/app-server). No envía mensajes a modelos ni consulta consumo facturado de la API. Lee las ventanas que devuelve el servicio y selecciona la cuota `codex`. La etiqueta secundaria **Cuota Codex** identifica ese alcance: **no mide los límites de mensajes de todos los modelos de chatgpt.com**. Requiere que ya tengas el CLI instalado e iniciado con tu suscripción. Si no está disponible, muestra `--`.
 
-**Claude:** esta versión no incluye un conector automático de la cuenta de claude.ai. Muestra `--` hasta recibir datos vigentes mediante un archivo JSON o un proveedor local configurable. Es una integración pendiente; instalar el tema no habilita lectura automática de Claude. El contrato de datos está en [docs/providers.md](docs/providers.md).
+**Claude Code:** incluye un puente para la [línea de estado oficial](https://code.claude.com/docs/en/statusline). Se activa después de instalar el tema con `python3 ~/.conky/Orbita-HUD/runner.py connect-claude`. Prepara `~/.claude/usage-statusline.sh` y lo conecta desde `~/.claude/settings.json`, respaldando y conservando las demás preferencias. El script recibe JSON por stdin y escribe únicamente cuotas saneadas en `~/.claude/usage.json`. Requiere una primera respuesta con `rate_limits` en Claude Code usando una suscripción compatible. No obtiene lecturas de la web/app por sí solo. El visor muestra la antigüedad del dato y `--` hasta recibirlo o cuando caduca. [Contrato y limitaciones](docs/providers.md).
 
-Los arcos representan **porcentaje utilizado**, de 0 a 100. Una lectura ausente, vencida o con reinicio alcanzado se oculta: nunca se inventa un 0%. Las lecturas caducan por defecto a los 15 minutos. Los valores de las capturas son ejemplos y no se incluyen en los datos del tema.
+Los arcos representan **porcentaje utilizado**, de 0 a 100. El recorrido se calcula después de descontar las partes ocultas por otras circunferencias y por el borde de la pantalla: un 50% pinta la mitad de las secciones visibles. Una lectura ausente, vencida o con reinicio alcanzado se oculta: nunca se inventa un 0%. Las lecturas caducan por defecto a los 15 minutos. La fila de sesión muestra el tiempo restante en lugar de una etiqueta estática de 5 h; la semanal también informa su reinicio. Los valores de las capturas son ejemplos y no se incluyen en los datos del tema.
 
 ## Sensores y privacidad
 
 - NVIDIA: primera GPU informada por `nvidia-smi`. AMD: sensores DRM/hwmon cuando los expone el controlador. Otros controladores pueden devolver `--`. No se confunde un sensor NVMe con la CPU.
 - CPU global: diferencia de contadores de `/proc/stat`. RAM: memoria total menos `MemAvailable`, incluyendo la memoria recuperable como disponible.
-- Arcos térmicos: escala gráfica de 0–120 °C. Es una escala de visualización, no un umbral de seguridad del hardware.
+- Arcos térmicos: solo se colorea la fracción utilizada del recorrido visible, de azul hacia rojo para CPU y GPU. El rojo corresponde al máximo configurado o informado por el hardware (sensor crítico CPU / máximo operativo GPU). En NVIDIA se convierten los márgenes relativos `T.Limit` según su [documentación](https://docs.nvidia.com/deploy/nvidia-smi/index.html). Si no existe un límite, se usa la escala de respaldo de 100 °C; puedes indicar un valor verificado en `[temperature] cpu_max_c` / `gpu_max_c`. La escala es visual y no controla ventiladores ni límites térmicos.
 - Procesamiento de audio local por FFT/NumPy, captura del monitor de salida con `parec`. **No se guardan grabaciones.**
 - No se leen cookies ni archivos de tokens. Se conservan únicamente valores saneados en `$XDG_RUNTIME_DIR/orbita-hud` (o caché local si falta ese directorio). Nada se envía a un servidor de Órbita HUD.
 - Un proceso de muestreo compartido evita lectores duplicados. Se cierra después de 60 segundos sin módulos activos. El panel se dibuja a 1 Hz; el reloj y su halo a 25 FPS por defecto.

@@ -1,4 +1,9 @@
 # Configuración personal: ~/.config/orbita-hud/config.toml
+[temperature]
+cpu_max_c = 0 # 0 = sensor crítico del hardware; sin sensor se usa fallback_max_c
+gpu_max_c = 0 # 0 = máximo operativo informado por el controlador
+fallback_max_c = 100 # escala visual cuando el hardware no expone su límite
+
 [appearance]
 side = "right" # left o right; refleja la geometría sin invertir las letras
 monitor = "" # vacío = monitor principal de XRandR, nunca tamaño de un video

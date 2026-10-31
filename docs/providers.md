@@ -1,42 +1,45 @@
-# Lecturas de uso
+# Lecturas de uso y reinicios
 
-El diseño admite dos ventanas, corta y semanal. Se muestra porcentaje **utilizado**. El proveedor oficial de Codex devuelve minutos y reinicios; en esta versión su ventana corta es de 300 minutos (5 h). La etiqueta 5 h describe esa ventana, no un temporizador fijo del HUD.
+Se muestra porcentaje **utilizado** y tiempo restante hasta el reinicio informado por el proveedor. El tiempo usa segundos Unix. Un reinicio alcanzado oculta la lectura vencida; no se supone un 0% hasta recibirlo realmente.
 
-## Claude: archivo local
+## Claude Code: puente de línea de estado
 
-El archivo predeterminado es `~/.config/orbita-hud/claude-usage.json`. También puede configurarse `usage.claude_file`. Formato:
+La [documentación oficial](https://code.claude.com/docs/en/statusline#rate-limit-usage) describe `rate_limits.five_hour.used_percentage`, `seven_day.used_percentage` y `resets_at`. Aparecen en sesiones de suscripción compatibles después de una respuesta. Los datos llegan **por stdin**; no se busca un archivo interno de cuotas.
+
+Después de instalar Órbita HUD:
+
+```bash
+python3 ~/.conky/Orbita-HUD/runner.py connect-claude
+```
+
+Crea `~/.claude/usage-statusline.sh` y añade `statusLine` a `~/.claude/settings.json`. Conserva las demás preferencias y guarda respaldo. Si encuentra otra línea de estado personalizada, la conserva para permitir una integración manual. No cambia permisos de herramientas ni autenticación.
+
+El script delega a `runner.py claude-statusline`: recibe JSON, muestra un resumen en terminal y guarda únicamente porcentajes, reinicios, fecha y una huella de actualización en **`~/.claude/usage.json`**, con permisos 600. Descarta rutas de proyectos, identificadores de sesión y el resto del contexto.
+
+No configura `refreshInterval`: repetir una entrada en memoria no equivale a consultar al servidor. Si coinciden cuotas, sesión y duración acumulada de llamadas API, conserva la fecha anterior. El visor lee el archivo cada segundo, muestra su antigüedad y deja de usarlo tras `stale_seconds` (900 por defecto).
+
+**Requisito si no usas Claude Code:** instalar/abrir Claude Code e iniciar tu sesión de suscripción. El puente no obtiene datos de la web/app ni ejecuta peticiones a modelos por su cuenta. Hasta recibir una entrada real muestra `--`.
+
+## Compatibilidad con el script compartido
+
+También se acepta `~/.claude/usage.json` con este formato (números de ejemplo):
 
 ```json
 {
-  "observed_at": 1793389320,
-  "session": {"used_percent": 53, "resets_at": 1793400000},
-  "weekly": {"used_percent": 26, "resets_at": 1793800000}
+  "five_hour": {"used_percentage": 42, "resets_at": 1793400000},
+  "seven_day": {"used_percentage": 18, "resets_at": 1793800000},
+  "updated_at": 1793389320
 }
 ```
 
-Estos números son **un ejemplo de formato**, no datos actuales. `observed_at` y `resets_at` usan segundos Unix. También se aceptan `five_hour`/`seven_day`, `utilization` y reinicios ISO 8601 con zona horaria.
+Modificar `updated_at` sin una respuesta nueva no demuestra una consulta nueva. El puente incluido evita ese refresco artificial.
 
-Para importar una lectura exportada por una herramienta de confianza:
-
-```bash
-python3 ~/.conky/Orbita-HUD/runner.py import-claude /ruta/lectura.json
-```
-
-La importación conserva la fecha real de observación. No convierte una lectura antigua en una lectura vigente. La actualización llega en el siguiente ciclo (por defecto 180 s).
+Se conserva `~/.config/orbita-hud/claude-usage.json` como respaldo cuando no existe el archivo anterior. `usage.claude_file` selecciona una ruta explícita. Se aceptan `session`/`weekly`, `five_hour`/`seven_day`, `used_percent`, `utilization` y reinicios ISO 8601 con zona horaria.
 
 ## Proveedor local opcional
 
-`claude_command` es una **lista de argumentos**, ejecutada sin intérprete de shell. Debe devolver el mismo JSON por stdout en menos de 12 segundos. Configúralo únicamente con un programa de tu confianza que ya tenga acceso legítimo a tu cuenta. El HUD no necesita ni recibe tokens de ese programa.
-
-```toml
-[usage]
-claude_command = ["/ruta/mi-exportador", "--json"]
-```
-
-Esta interfaz es extensible, pero no se distribuye un exportador automático de Claude. Consulta los [límites explicados por Anthropic](https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work) y la página de uso de tu cuenta para conocer las ventanas que realmente te aplican.
+`usage.claude_command` es una lista de argumentos ejecutada sin shell. Debe devolver JSON con `observed_at`, `session` y `weekly` en menos de 12 segundos; se consulta con el intervalo configurado (180 s por defecto).
 
 ## Codex
 
-El proceso lanza el CLI oficial en modo App Server, realiza `initialize`, notifica `initialized` y solicita `account/rateLimits/read`; termina el proceso auxiliar al recibir respuesta. No crea conversaciones. Si se configura `codex_socket`, usa el proxy oficial hacia ese socket. La salida completa del servicio se descarta: únicamente se conservan porcentajes, reinicios y fecha de lectura.
-
-Las notificaciones y errores no se imprimen con datos de cuenta. Si falla una consulta, se mantiene la última lectura solo hasta su caducidad. Ningún fallo se presenta como cuota disponible al 100%.
+Se usa el CLI oficial y `account/rateLimits/read`: inicialización, lectura y cierre del proceso auxiliar. No crea conversaciones. Solo conserva porcentajes, reinicios y fecha de lectura. La cuota mostrada es la de **Codex**, no los límites de todos los modelos de chatgpt.com. Si falla la consulta, la última lectura conserva su fecha y caduca.

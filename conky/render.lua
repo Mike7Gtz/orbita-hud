@@ -18,6 +18,9 @@ for row in panel_file:lines() do
     if k then panel[k]=assert(tonumber(v)) end
 end
 panel_file:close()
+local visible=dofile(ROOT..'/conky/visible.lua')
+local tracks=visible.panel_tracks(panel)
+local countdown=dofile(ROOT..'/conky/countdown.lua')
 local function rgba(cr,c,a) cairo_set_source_rgba(cr,c[1],c[2],c[3],a or 1) end
 local function line(cr,x1,y1,x2,y2,width,c,a)
     rgba(cr,c,a); cairo_set_line_width(cr,width)
@@ -128,6 +131,10 @@ end
 function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
     local p=panel
     cairo_save(cr); local scale=math.min(width/p.width,height/p.height)
+    local font_options=cairo_font_options_create()
+    cairo_font_options_set_antialias(font_options,CAIRO_ANTIALIAS_GRAY)
+    cairo_set_font_options(cr,font_options)
+    cairo_font_options_destroy(font_options)
     cairo_translate(cr,(width-p.width*scale)/2,0); cairo_scale(cr,scale,scale)
     local left=(side or telemetry.side)=='left'
     local function X(x) return left and p.width-x or x end
@@ -152,6 +159,10 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         local a=cairo_text_extents_t:create(); local b=cairo_text_extents_t:create()
         cairo_text_extents(cr,caption,a); cairo_text_extents(cr,value,b)
         local gap=9; local total=a.width+gap+b.width
+        if total>170 then
+            local scale=170/total
+            size=size*scale; a.width=a.width*scale; b.width=b.width*scale; gap=gap*scale; total=170
+        end
         local start=X(p.quota_text_x)-total/2
         label(cr,caption,start+a.width/2,y,size,color,CAIRO_FONT_WEIGHT_BOLD,'center')
         label(cr,value,start+a.width+gap+b.width/2,y,size,white,CAIRO_FONT_WEIGHT_BOLD,'center')
@@ -170,61 +181,57 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
             ticks(cr,p.quota_x,y,p.quota_inner_radius,start,-198,90,used[2],{.70,.86,1},2.3,p.quota_inner_span)
         end)
         text(title,p.quota_text_x,y-48,25,white,CAIRO_FONT_WEIGHT_BOLD)
-        local hours=(number(usage,name..'.session.minutes') or 300)/60
-        quota_line(string.format('%g h',hours),used[1],y-2,20,cyan)
+        local remaining,status=countdown.format(usage[name..'.session.reset'],now)
+        local session_caption=not stale and remaining or 'Sesión --'
+        if not stale and status=='expired' then session_caption='Actualizando' end
+        quota_line(session_caption,used[1],y-2,20,cyan)
         quota_line('Semanal',used[2],y+39,18,{.35,.72,1})
+        local week_remaining,week_status=countdown.format(usage[name..'.weekly.reset'],now)
+        local week_caption=not stale and week_remaining and 'Reinicio: '..week_remaining or 'Reinicio semanal: --'
+        if not stale and week_status=='expired' then week_caption='Reinicio semanal pendiente' end
+        text(week_caption,p.quota_text_x,y+59,10,muted,nil,180)
         local source=usage[name..'.source'] or ''
         local note=stale and 'Sin lectura vigente' or (name=='chatgpt' and 'Cuota Codex' or (source=='imported' and 'Lectura importada' or 'Suscripción'))
-        text(note,p.quota_text_x,y+75,10,muted)
+        if name=='claude' and observed>0 then
+            local age=math.max(0,now-observed)
+            local ago=age<60 and 'hace '..math.floor(age)..' s' or 'hace '..math.floor(age/60)..' min'
+            note=(stale and 'Lectura vencida · ' or source=='claude-code-statusline' and 'Claude Code · ' or 'Lectura · ')..ago
+        elseif name=='claude' then note='Esperando lectura de Claude Code' end
+        text(note,p.quota_text_x,y+80,10,muted,nil,180)
     end
     quota('chatgpt','ChatGPT',p.quota_top_y,false)
     quota('claude','Claude',p.quota_bottom_y,true)
-    local outer=p.gauge_radius+p.gauge_span
-    local thermal_outer=p.temperature_radius+p.temperature_span
-    local thermal_mask={p.temperature_x,p.temperature_y,thermal_outer+p.occlusion_gap}
-    local gpu_mask={p.gauge_x,p.gpu_y,outer+p.occlusion_gap}
-    local cpu_mask={p.gauge_x,p.cpu_y,outer+p.occlusion_gap}
-    local function gauge_ring(key,y,upper,masks)
-        local v=number(telemetry,key)
-        shapes(function()
-            orbita_clip_background(cr,p.width,p.height,masks,function()
-                -- A complete circle continues behind the next disk and off screen.
-                -- The visible half advances from the top (GPU) or bottom (CPU).
-                local filled=v and math.floor(math.max(0,math.min(100,v))*p.gauge_count/200+.5) or 0
-                for i=0,p.gauge_count-1 do
-                    local angle=((upper and -90 or 90)+(upper and -1 or 1)*360*i/p.gauge_count)*PI/180
-                    local x1,y1=polar(p.gauge_x,y,p.gauge_radius,angle)
-                    local x2,y2=polar(p.gauge_x,y,outer,angle)
-                    line(cr,x1,y1,x2,y2,2.2,i<filled and {.02,1,.64} or muted,i<filled and 1 or .48)
-                end
-            end)
-        end)
-    end
-    gauge_ring('vram.percent',p.vram_y,true,{gpu_mask,thermal_mask})
-    gauge_ring('ram.percent',p.ram_y,false,{cpu_mask,thermal_mask})
-    gauge_ring('gpu.load',p.gpu_y,true,{thermal_mask})
-    gauge_ring('cpu.load',p.cpu_y,false,{thermal_mask})
-    local gpu=number(telemetry,'gpu.temperature'); local cpu=number(telemetry,'cpu.temperature')
-    local function thermal(value,upper)
-        local stops={{0,.80,1},{.16,.43,1},{.64,.30,1},{.97,.22,.63},{1,.32,.19}}
-        local edge_angle=math.acos(math.max(-1,math.min(1,(p.width-p.temperature_x)/thermal_outer)))*180/PI
-        local visible_fraction=math.max(.01,(178-edge_angle)/176)
-        for i=0,71 do
-            local fraction=i/71
-            local progress=math.min(1,fraction/visible_fraction)
-            local v=(upper and progress or 1-progress)*4
-            local index=math.min(4,math.floor(v)+1); local k=v-(index-1)
-            local a,b=stops[index],stops[index+1]
-            local c={a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k,a[3]+(b[3]-a[3])*k}
-            local angle=((upper and 182 or 178)+(upper and 176 or -176)*fraction)*PI/180
-            local x1,y1=polar(p.temperature_x,p.temperature_y,p.temperature_radius,angle)
-            local x2,y2=polar(p.temperature_x,p.temperature_y,thermal_outer,angle)
-            local alpha=value and (progress<=math.max(0,math.min(1,value/120)) and 1 or .55) or .30
-            line(cr,x1,y1,x2,y2,3,value and c or muted,alpha)
+    local function paint_track(track,value,width,color)
+        local parts=visible.fill(track,value)
+        for _,part in ipairs(parts) do
+            local s=part.segment
+            line(cr,s.x1,s.y1,s.x2,s.y2,width,muted,.32)
+            if value and part.filled>0 then
+                local fraction=part.filled/s.length
+                local c=type(color)=='function' and color(part.progress) or color
+                line(cr,s.x1,s.y1,s.x1+(s.x2-s.x1)*fraction,s.y1+(s.y2-s.y1)*fraction,width,c,1)
+            end
         end
     end
     shapes(function()
-        thermal(gpu,true); thermal(cpu,false)
+        paint_track(tracks.vram,number(telemetry,'vram.percent'),2.2,{.02,1,.64})
+        paint_track(tracks.ram,number(telemetry,'ram.percent'),2.2,{.02,1,.64})
+        paint_track(tracks.gpu,number(telemetry,'gpu.load'),2.2,{.02,1,.64})
+        paint_track(tracks.cpu,number(telemetry,'cpu.load'),2.2,{.02,1,.64})
+    end)
+    local gpu=number(telemetry,'gpu.temperature'); local cpu=number(telemetry,'cpu.temperature')
+    local function thermal_color(progress)
+        local stops={{.05,.50,1},{.28,.35,1},{.63,.24,.95},{.95,.18,.53},{1,.15,.12}}
+        local v=math.max(0,math.min(1,progress))*4
+        local index=math.min(4,math.floor(v)+1); local k=v-(index-1)
+        local a,b=stops[index],stops[index+1]
+        return {a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k,a[3]+(b[3]-a[3])*k}
+    end
+    shapes(function()
+        local gpu_max=number(telemetry,'gpu.temperature.scale_max') or 100
+        local cpu_max=number(telemetry,'cpu.temperature.scale_max') or 100
+        paint_track(tracks.gpu_temperature,gpu and gpu/math.max(1,gpu_max)*100,3,thermal_color)
+        paint_track(tracks.cpu_temperature,cpu and cpu/math.max(1,cpu_max)*100,3,thermal_color)
     end)
     local function gauge_label(caption,key,y,upper)
         local label_offset=upper and p.gauge_label_upper or p.gauge_label_lower

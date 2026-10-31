@@ -120,6 +120,8 @@ def main():
     d = subs.add_parser('daemon'); d.add_argument('--ensure', action='store_true')
     l = subs.add_parser('layout'); l.add_argument('kind', choices=['clock', 'panel'])
     subs.add_parser('runtime')
+    subs.add_parser('claude-statusline')
+    subs.add_parser('connect-claude')
     i = subs.add_parser('install'); i.add_argument('--autostart', action='store_true')
     q = subs.add_parser('import-claude'); q.add_argument('file', type=Path)
     args = p.parse_args()
@@ -128,6 +130,14 @@ def main():
     elif args.command == 'stop': stop_widgets()
     elif args.command == 'daemon': daemon.ensure(ROOT) if args.ensure else daemon.run()
     elif args.command == 'runtime': print(runtime_dir())
+    elif args.command == 'claude-statusline':
+        from .claude_statusline import main as statusline
+        statusline()
+    elif args.command == 'connect-claude':
+        from .claude_statusline import configure
+        path=configure(ROOT)
+        print('Puente Claude preparado: '+str(path))
+        print('La lectura llegará después de una respuesta de Claude Code con tu suscripción.')
     elif args.command == 'layout':
         values = layout(load(), args.kind); values['runtime'] = str(runtime_dir())
         for key, value in values.items(): print(f'{key}={value}')
