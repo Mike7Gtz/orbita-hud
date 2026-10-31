@@ -2,10 +2,12 @@
 from pathlib import Path
 import hashlib
 import subprocess
+import runpy
 import zipfile
 ROOT=Path(__file__).resolve().parents[1]
 output=ROOT/'dist'; output.mkdir(exist_ok=True)
-target=output/'orbita-hud-0.1.0.zip'
+version=runpy.run_path(str(ROOT/'src/orbita_hud/__init__.py'))['__version__']
+target=output/f'orbita-hud-{version}.zip'
 exclude={'dist','build','.git','references','__pycache__','.venv'}
 with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED) as z:
     if (ROOT/'.git').is_dir():

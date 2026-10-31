@@ -4,7 +4,7 @@
 
 ![Vista de ejemplo: porcentajes ilustrativos, no lecturas en vivo](assets/preview-right.png)
 
-Primera versión **0.1.0**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo.
+Versión **0.1.1**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
 
 ## Qué incluye
 
@@ -13,7 +13,7 @@ Primera versión **0.1.0**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y C
 - GPU arriba: temperatura, carga global y VRAM utilizada. CPU abajo: temperatura, carga global y RAM general utilizada.
 - Dos arcos por suscripción: ventana corta y semana, con el porcentaje usado junto a cada etiqueta. Sin barras horizontales.
 - Dos módulos independientes en Conky Manager 2: `conkyrc-clock` y `conkyrc-panel`.
-- Escala proporcional al monitor principal, conservando círculos redondos. El panel se puede colocar a izquierda o derecha.
+- Escala proporcional al área útil del monitor principal, conservando círculos redondos y descontando el menú/panel del escritorio. El panel lateral se puede colocar a izquierda o derecha y se reajusta automáticamente cuando cambia el espacio disponible.
 
 ## Instalación
 
@@ -23,7 +23,7 @@ Dependencias en Mint/Ubuntu (paquetes de sus repositorios oficiales):
 
 ```bash
 sudo apt update
-sudo apt install conky-all python3 python3-numpy pulseaudio-utils x11-xserver-utils fonts-dejavu-core git
+sudo apt install conky-all python3 python3-numpy pulseaudio-utils x11-xserver-utils x11-utils libglib2.0-bin fonts-dejavu-core git
 git clone https://github.com/Mike7Gtz/orbita-hud.git
 cd orbita-hud
 ./install.sh
@@ -62,7 +62,11 @@ enabled = true
 gain = 1.0
 ```
 
-El ancho y el alto escalan juntos según XRandR; reproducir un video no cambia el tamaño. Tras cambiar resolución o monitor, reinicia el tema. La geometría está pensada para pantallas de escritorio de al menos 1280×720. Las letras permanecen legibles al reflejar el panel. La posición y el tamaño se gestionan con este archivo; las dimensiones de respaldo del editor de Conky Manager no sustituyen el ajuste automático.
+El panel obtiene el área útil de cada monitor con `org.Cinnamon.GetMonitorWorkRect` y usa `_NET_WORKAREA` como respaldo fuera de Cinnamon. Los márgenes se añaden **después** de descontar las reservas del escritorio. Su ancho y alto escalan juntos; reproducir un video no cambia el tamaño. El muestreador revisa la geometría cada 3 segundos y, si cambia, reinicia únicamente el módulo lateral que esté activo. No activa un módulo que hayas desmarcado.
+
+Se conserva el tamaño y la posición del reloj central. Si eliges otra pantalla para el conjunto desde el archivo de configuración, ejecuta de nuevo `runner.py start`. La geometría está pensada para pantallas de escritorio de al menos 1280×720. Las letras permanecen legibles al reflejar el panel. La posición y el tamaño se gestionan con este archivo; las dimensiones de respaldo del editor de Conky Manager no sustituyen el ajuste automático.
+
+Los medidores laterales tienen espacios separados: VRAM, carga GPU, temperaturas GPU/CPU, carga CPU y RAM. Los textos se ajustan a su zona, incluso al mostrar `100%`. Un dock que no reserve espacio en el gestor de ventanas (por ejemplo, con ocultamiento automático) no se descuenta artificialmente; sí se respetan los paneles que reservan área de trabajo.
 
 ## Límites de las suscripciones: alcance real
 

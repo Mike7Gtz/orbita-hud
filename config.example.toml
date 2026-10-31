@@ -2,8 +2,8 @@
 [appearance]
 side = "right" # left o right; refleja la geometría sin invertir las letras
 monitor = "" # vacío = monitor principal de XRandR, nunca tamaño de un video
-top_margin = 18
-bottom_margin = 18
+top_margin = 18 # espacio adicional después del menú/panel que reserva el escritorio
+bottom_margin = 18 # espacio adicional sobre el borde útil inferior
 clock_scale = 0.82
 fps = 25
 opacity = 0 # reserva para el fondo; los dibujos conservan su contraste

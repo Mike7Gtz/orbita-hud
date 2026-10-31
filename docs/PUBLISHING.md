@@ -2,7 +2,7 @@
 
 1. Ejecutar las pruebas y regenerar las vistas derecha e izquierda.
 2. `python3 scripts/package.py` genera un ZIP instalable y su SHA-256. El ZIP contiene fuentes, licencia, documentación e instalador; no contiene estados de uso, registros, credenciales ni referencias descargadas para consulta.
-3. Publicar una versión GitHub `v0.1.0` y adjuntar ZIP y SHA-256. Describir expresamente que Claude necesita un proveedor y que el lector ChatGPT mide la cuota de Codex.
+3. Publicar una versión GitHub que coincida con `src/orbita_hud/__init__.py` (actualmente `v0.1.1`). GitHub genera automáticamente ZIP y tar.gz de las fuentes con su instalador; si se adjunta el ZIP del empaquetador, incluir también su SHA-256. Describir expresamente que Claude necesita un proveedor y que el lector ChatGPT mide la cuota de Codex.
 4. En [Gnome-look, categoría Conky](https://www.gnome-look.org/browse?cat=124), crear la ficha con la captura real de `assets/preview-right.png`, autor Onocru, GPL-3.0-or-later, versión y enlace al repositorio. No usar solo el concepto generado como prueba de funcionamiento.
 5. Conservar los créditos de CREDITS.md y no adjuntar los archivos de temas ajenos ni el video de referencia.
 

@@ -1,0 +1,25 @@
+# Logical canvas. Arc radii include their tick span; units scale together.
+width=460
+height=1000
+quota_x=194
+quota_top_y=258
+quota_bottom_y=742
+quota_outer_radius=176
+quota_outer_span=15
+quota_inner_radius=151
+quota_inner_span=12
+gauge_x=452
+gauge_radius=72
+gauge_span=12
+vram_y=95
+gpu_y=270
+cpu_y=730
+ram_y=905
+gauge_text_x=420
+gauge_text_width=66
+temperature_x=452
+temperature_y=500
+temperature_radius=127
+temperature_span=13
+temperature_text_x=408
+temperature_text_width=90

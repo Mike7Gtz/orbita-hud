@@ -23,12 +23,12 @@ class LayoutTests(unittest.TestCase):
         self.assertTrue(monitors[0]['primary'])
         cfg=load('/nonexistent')
         for m in monitors:
-            clock=layout(cfg,'clock',m); panel=layout(cfg,'panel',m)
+            clock=layout(cfg,'clock',m,work=m); panel=layout(cfg,'panel',m,work=m)
             self.assertEqual(clock['width'],clock['height'])
-            self.assertAlmostEqual(panel['width']/panel['height'],.4,places=2)
+            self.assertAlmostEqual(panel['width']/panel['height'],.46,places=2)
             self.assertLess(panel['height'],m['height'])
         cfg['appearance']['side']='left'
-        self.assertEqual(layout(cfg,'panel',monitors[0])['alignment'],'top_left')
+        self.assertEqual(layout(cfg,'panel',monitors[0],work=monitors[0])['alignment'],'top_left')
 
 
 class QuotaTests(unittest.TestCase):

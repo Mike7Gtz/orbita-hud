@@ -8,7 +8,7 @@ import signal
 import subprocess
 import sys
 import time
-from .config import load, layout, runtime_dir, config_dir, write_state
+from .config import load, layout, monitor, workarea, runtime_dir, config_dir, write_state
 from . import daemon
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,13 +72,14 @@ def start(kind='all'):
 def install(autostart=False):
     target = Path.home()/'.conky/Orbita-HUD'
     if target.resolve() != ROOT.resolve():
+        daemon.stop(target)
         stop_widgets(target)
         if target.exists():
             backup = target.with_name('Orbita-HUD.backup-'+time.strftime('%Y%m%d-%H%M%S'))
             shutil.copytree(target, backup)
         target.mkdir(parents=True, exist_ok=True)
         for name in ('src', 'conky', 'runner.py', 'conkyrc-clock', 'conkyrc-panel',
-                     'config.example.toml', 'README.md', 'LICENSE', 'CREDITS.md'):
+                     'config.example.toml', 'README.md', 'LICENSE', 'CREDITS.md', 'CHANGELOG.md'):
             source = ROOT/name
             if source.is_dir():
                 shutil.copytree(source, target/name, dirs_exist_ok=True,
@@ -100,9 +101,11 @@ def install(autostart=False):
 
 
 def doctor():
-    result = {name: bool(shutil.which(name)) for name in ('conky', 'python3', 'xrandr', 'pactl', 'parec', 'codex')}
+    result = {name: bool(shutil.which(name)) for name in ('conky', 'python3', 'xrandr', 'xprop', 'gdbus', 'pactl', 'parec', 'codex')}
     result['numpy'] = importlib.util.find_spec('numpy') is not None
-    result['layout'] = layout(load(), 'panel')
+    cfg=load(); screen=monitor(cfg); area=workarea(screen)
+    result['workarea'] = area
+    result['layout'] = layout(cfg, 'panel', screen, area)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     if not all(result[name] for name in ('conky', 'python3', 'xrandr', 'pactl', 'parec', 'numpy')):
         sys.exit(1)

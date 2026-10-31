@@ -1,4 +1,5 @@
 from pathlib import Path
+import ast
 import os
 import re
 import subprocess
@@ -72,16 +73,70 @@ def monitor(cfg):
             or dict(index=0, primary=True, width=1366, height=768, x=0, y=0, name='fallback'))
 
 
-def layout(cfg, kind, screen=None):
+def intersect_workarea(screen, rect):
+    """Clip a global work rectangle to this monitor, including offset/negative origins."""
+    if len(rect) != 4 or any(not isinstance(v, int) for v in rect):
+        raise ValueError('invalid_workarea')
+    x, y, w, h = rect
+    if w <= 0 or h <= 0:
+        raise ValueError('invalid_workarea')
+    left, top = max(screen['x'], x), max(screen['y'], y)
+    right = min(screen['x']+screen['width'], x+w)
+    bottom = min(screen['y']+screen['height'], y+h)
+    if right <= left or bottom <= top:
+        raise ValueError('workarea_outside_monitor')
+    return dict(x=left, y=top, width=right-left, height=bottom-top)
+
+
+def workarea(screen):
+    """Cinnamon has per-monitor work areas; EWMH only offers a global fallback."""
+    try:
+        r = subprocess.run(['gdbus', 'call', '--session', '--dest', 'org.Cinnamon',
+                            '--object-path', '/org/Cinnamon', '--method',
+                            'org.Cinnamon.GetMonitorWorkRect', str(screen['index'])],
+                           capture_output=True, text=True, timeout=2, check=True)
+        rect = ast.literal_eval(r.stdout.strip())[0]
+        return dict(intersect_workarea(screen, rect), source='cinnamon')
+    except (OSError, subprocess.SubprocessError, ValueError, SyntaxError, IndexError, TypeError):
+        pass
+    try:
+        r = subprocess.run(['xprop', '-root', '_NET_CURRENT_DESKTOP', '_NET_WORKAREA'],
+                           capture_output=True, text=True, timeout=2, check=True)
+        current = re.search(r'_NET_CURRENT_DESKTOP\([^)]*\)\s*=\s*(\d+)', r.stdout)
+        areas = re.search(r'_NET_WORKAREA\([^)]*\)\s*=\s*([^\n]+)', r.stdout)
+        if areas:
+            values = list(map(int, re.findall(r'-?\d+', areas.group(1))))
+            index = int(current.group(1)) if current else 0
+            return dict(intersect_workarea(screen, values[index*4:index*4+4]), source='ewmh')
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        pass
+    return dict(x=screen['x'], y=screen['y'], width=screen['width'], height=screen['height'], source='monitor')
+
+
+def layout(cfg, kind, screen=None, work=None):
     m = screen or monitor(cfg)
     a = cfg['appearance']
-    available = max(200, m['height'] - int(a['top_margin']) - int(a['bottom_margin']))
     if kind == 'clock':
         size = int(min(m['height'] * a['clock_scale'], m['width'] * .61))
         return dict(width=size, height=size, monitor=m['index'], gap_x=0, gap_y=0,
                     alignment='middle_middle', side=a['side'], opacity=a['opacity'], fps=a['fps'])
-    return dict(width=int(available * .4), height=available, monitor=m['index'],
-                gap_x=0, gap_y=int(a['top_margin']), alignment='top_' + a['side'],
+    area = work if work is not None else workarea(m)
+    top = min(max(0, int(a['top_margin'])), max(0, area['height']-4))
+    bottom = min(max(0, int(a['bottom_margin'])), max(0, area['height']-top-4))
+    # Conky adds a 1 px outer edge on every side, even with border margins at zero.
+    available = max(1, area['height']-top-bottom-2)
+    clock_size = min(m['height']*a['clock_scale'], m['width']*.61)
+    center = m['x']+m['width']/2
+    if a['side'] == 'right':
+        free_width = area['x']+area['width']-(center+clock_size/2)-12
+        gap = m['x']+m['width']-(area['x']+area['width'])
+    else:
+        free_width = center-clock_size/2-area['x']-12
+        gap = area['x']-m['x']
+    width = max(1, min(int(available*.46), int(max(1, free_width-2))))
+    height = max(1, min(available, int(width/.46)))
+    return dict(width=width, height=height, monitor=m['index'],
+                gap_x=gap+1, gap_y=area['y']-m['y']+top+1, alignment='top_' + a['side'],
                 side=a['side'], opacity=a['opacity'], fps=a['fps'])
 
 

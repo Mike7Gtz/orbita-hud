@@ -11,6 +11,13 @@ if pipe then pipe:close() end
 local PI = math.pi
 local cyan={0.03,0.83,1}; local blue={0.19,0.43,1}
 local white={0.94,0.97,1}; local muted={0.38,0.57,0.72}
+local panel={}
+local panel_file=assert(io.open(ROOT..'/conky/panel.layout','r'))
+for row in panel_file:lines() do
+    local k,v=row:match('^([%w_]+)=(.*)$')
+    if k then panel[k]=assert(tonumber(v)) end
+end
+panel_file:close()
 local function rgba(cr,c,a) cairo_set_source_rgba(cr,c[1],c[2],c[3],a or 1) end
 local function line(cr,x1,y1,x2,y2,width,c,a)
     rgba(cr,c,a); cairo_set_line_width(cr,width)
@@ -95,13 +102,22 @@ function orbita_draw_clock(cr,width,height,telemetry,usage,audio,stamp)
 end
 
 function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
-    cairo_save(cr); local scale=math.min(width/400,height/1000)
-    cairo_translate(cr,(width-400*scale)/2,0); cairo_scale(cr,scale,scale)
+    local p=panel
+    cairo_save(cr); local scale=math.min(width/p.width,height/p.height)
+    cairo_translate(cr,(width-p.width*scale)/2,0); cairo_scale(cr,scale,scale)
     local left=(side or telemetry.side)=='left'
-    local function X(x) return left and 400-x or x end
-    local function text(s,x,y,size,c,weight) label(cr,s,X(x),y,size,c,weight,'center') end
+    local function X(x) return left and p.width-x or x end
+    local function text(s,x,y,size,c,weight,max_width)
+        if max_width then
+            cairo_select_font_face(cr,'DejaVu Sans',CAIRO_FONT_SLANT_NORMAL,weight or CAIRO_FONT_WEIGHT_NORMAL)
+            cairo_set_font_size(cr,size)
+            local e=cairo_text_extents_t:create(); cairo_text_extents(cr,tostring(s),e)
+            if e.width>max_width then size=size*max_width/e.width end
+        end
+        label(cr,s,X(x),y,size,c,weight,'center')
+    end
     local function shapes(fn)
-        cairo_save(cr); if left then cairo_translate(cr,400,0); cairo_scale(cr,-1,1) end
+        cairo_save(cr); if left then cairo_translate(cr,p.width,0); cairo_scale(cr,-1,1) end
         fn(); cairo_restore(cr)
     end
     local now=stamp or os.time()
@@ -114,8 +130,8 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
             used[i]=not stale and (not reset or reset>now) and number(usage,name..'.'..key..'.used') or nil
         end
         shapes(function()
-            ticks(cr,190,y,176,-72,-216,90,used[1],cyan,2.5,15)
-            ticks(cr,190,y,151,-72,-216,90,used[2],{.53,.77,1},2,12)
+            ticks(cr,p.quota_x,y,p.quota_outer_radius,-72,-216,90,used[1],cyan,2.5,p.quota_outer_span)
+            ticks(cr,p.quota_x,y,p.quota_inner_radius,-72,-216,90,used[2],{.53,.77,1},2,p.quota_inner_span)
         end)
         text(title,170,y-44,25,white,CAIRO_FONT_WEIGHT_BOLD)
         local hours=(number(usage,name..'.session.minutes') or 300)/60
@@ -125,28 +141,28 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         local note=stale and 'Sin lectura vigente' or (name=='chatgpt' and 'Cuota Codex' or (source=='imported' and 'Lectura importada' or 'Suscripción'))
         text(note,167,y+70,10,muted)
     end
-    quota('chatgpt','ChatGPT',258)
-    quota('claude','Claude',742)
+    quota('chatgpt','ChatGPT',p.quota_top_y)
+    quota('claude','Claude',p.quota_bottom_y)
     local function gauge(caption,key,y)
         local v=number(telemetry,key)
-        shapes(function() ticks(cr,453,y,125,110,140,58,v,{.02,1,.64},2.5,16) end)
-        text(caption,346,y-9,16,white,CAIRO_FONT_WEIGHT_BOLD)
-        text(percentage(v),346,y+26,31,white,CAIRO_FONT_WEIGHT_BOLD)
+        shapes(function() ticks(cr,p.gauge_x,y,p.gauge_radius,90,180,58,v,{.02,1,.64},2.5,p.gauge_span) end)
+        text(caption,p.gauge_text_x,y-18,14,white,CAIRO_FONT_WEIGHT_BOLD,p.gauge_text_width)
+        text(percentage(v),p.gauge_text_x,y+18,28,white,CAIRO_FONT_WEIGHT_BOLD,p.gauge_text_width)
     end
-    gauge('VRAM','vram.percent',79)
-    gauge('GPU','gpu.load',258)
-    gauge('CPU','cpu.load',742)
-    gauge('RAM','ram.percent',921)
+    gauge('VRAM','vram.percent',p.vram_y)
+    gauge('GPU','gpu.load',p.gpu_y)
+    gauge('CPU','cpu.load',p.cpu_y)
+    gauge('RAM','ram.percent',p.ram_y)
     local gpu=number(telemetry,'gpu.temperature'); local cpu=number(telemetry,'cpu.temperature')
     shapes(function()
-        ticks(cr,432,500,174,188,92,42,gpu and gpu/120*100,nil,3,17,true)
-        ticks(cr,432,500,174,172,-92,42,cpu and cpu/120*100,nil,3,17,true)
+        ticks(cr,p.temperature_x,p.temperature_y,p.temperature_radius,182,88,42,gpu and gpu/120*100,nil,3,p.temperature_span,true)
+        ticks(cr,p.temperature_x,p.temperature_y,p.temperature_radius,178,-88,42,cpu and cpu/120*100,nil,3,p.temperature_span,true)
     end)
-    text('GPU',335,443,16,white,CAIRO_FONT_WEIGHT_BOLD)
-    text(temperature(gpu),335,481,32,white,CAIRO_FONT_WEIGHT_BOLD)
-    line(cr,X(283),500,X(390),500,1,muted,.6)
-    text('CPU',335,535,16,white,CAIRO_FONT_WEIGHT_BOLD)
-    text(temperature(cpu),335,574,32,white,CAIRO_FONT_WEIGHT_BOLD)
+    text('GPU',p.temperature_text_x,443,16,white,CAIRO_FONT_WEIGHT_BOLD)
+    text(temperature(gpu),p.temperature_text_x,481,32,white,CAIRO_FONT_WEIGHT_BOLD,p.temperature_text_width)
+    line(cr,X(345),500,X(453),500,1,muted,.6)
+    text('CPU',p.temperature_text_x,535,16,white,CAIRO_FONT_WEIGHT_BOLD)
+    text(temperature(cpu),p.temperature_text_x,574,32,white,CAIRO_FONT_WEIGHT_BOLD,p.temperature_text_width)
     cairo_restore(cr)
 end
 
@@ -161,7 +177,10 @@ local function draw(kind)
     local cr=cairo_create(surface)
     local data=read('telemetry',6); local usage=read('usage',900); local audio=read('audio',2)
     if kind=='clock' then orbita_draw_clock(cr,w.width,w.height,data,usage,audio)
-    else orbita_draw_panel(cr,w.width,w.height,data,usage,audio) end
+    else
+        cairo_translate(cr,1,1)
+        orbita_draw_panel(cr,w.width-2,w.height-2,data,usage,audio)
+    end
     cairo_destroy(cr); cairo_surface_destroy(surface)
 end
 function conky_orbita_clock() draw('clock') end

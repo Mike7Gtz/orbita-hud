@@ -7,7 +7,7 @@ import subprocess
 import sys
 import threading
 import time
-from .config import load, runtime_dir, write_state
+from .config import load, layout, runtime_dir, write_state
 from .telemetry import Collector
 from .audio import AudioWorker
 from .quotas import codex_usage, claude_usage, flatten
@@ -42,9 +42,27 @@ def reload_settings():
         pass
 
 
-def widgets_running():
+def stop(root):
+    """Upgrade only our installed worker; never signal an unrelated PID."""
+    try:
+        pid = int((runtime_dir()/'daemon.pid').read_text())
+        args = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')
+        if len(args)<3 or args[1]!=os.fsencode(str(root/'runner.py')) or args[2]!=b'daemon':
+            return
+        os.kill(pid, signal.SIGTERM)
+        deadline = time.monotonic()+22
+        while alive() and time.monotonic()<deadline:
+            time.sleep(.1)
+        if alive():
+            raise RuntimeError('El muestreador anterior sigue cerrándose; vuelve a instalar en unos segundos.')
+    except (FileNotFoundError, ProcessLookupError, ValueError):
+        pass
+
+
+def widgets_running(kind=None):
     root = Path(__file__).resolve().parents[2]
-    expected = {os.fsencode(str(root/'conkyrc-clock')), os.fsencode(str(root/'conkyrc-panel'))}
+    kinds = [kind] if kind else ['clock', 'panel']
+    expected = {os.fsencode(str(root/f'conkyrc-{k}')) for k in kinds}
     for p in Path('/proc').iterdir():
         if not p.name.isdigit():
             continue
@@ -55,6 +73,22 @@ def widgets_running():
         except OSError:
             pass
     return False
+
+
+class PanelWatcher:
+    def __init__(self, cfg, root):
+        self.cfg, self.root, self.previous = cfg, root, None
+
+    def poll(self):
+        current = layout(self.cfg, 'panel')
+        changed = self.previous is not None and current != self.previous
+        self.previous = current
+        if changed and widgets_running('panel'):
+            subprocess.Popen([sys.executable, str(self.root/'runner.py'), 'start', '--widget', 'panel'],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+            return True
+        return False
 
 
 def run():
@@ -95,6 +129,9 @@ def run():
         thread.start()
         collector = Collector()
         last_widget = time.monotonic()
+        next_layout = 0
+        root = Path(__file__).resolve().parents[2]
+        watcher = PanelWatcher(cfg, root)
         try:
             while not stop.is_set():
                 if reload.is_set():
@@ -111,6 +148,9 @@ def run():
                 values = collector.sample()
                 values['side'] = cfg['appearance']['side']
                 write_state(folder/'telemetry.state', values)
+                if time.monotonic() >= next_layout:
+                    watcher.poll()
+                    next_layout = time.monotonic()+3
                 if widgets_running():
                     last_widget = time.monotonic()
                 elif time.monotonic()-last_widget > 60:

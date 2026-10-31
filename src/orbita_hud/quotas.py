@@ -6,6 +6,7 @@ import selectors
 import shutil
 import subprocess
 import time
+from . import __version__
 
 
 def normalize_window(value):
@@ -63,7 +64,7 @@ def codex_usage(sock='', timeout=15):
         raise TimeoutError('codex_usage_timeout')
     try:
         send({'id': 1, 'method': 'initialize', 'params': {'clientInfo': {
-            'name': 'orbita_hud', 'title': 'Orbita HUD', 'version': '0.1.0'}}})
+            'name': 'orbita_hud', 'title': 'Orbita HUD', 'version': __version__}}})
         receive(1)
         send({'method': 'initialized', 'params': {}})
         send({'id': 2, 'method': 'account/rateLimits/read'})
