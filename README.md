@@ -4,7 +4,7 @@
 
 ![Vista de ejemplo: porcentajes ilustrativos, no lecturas en vivo](assets/preview-right.png)
 
-Versión **0.1.1**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
+Versión **0.1.2**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
 
 ## Qué incluye
 
@@ -66,7 +66,9 @@ El panel obtiene el área útil de cada monitor con `org.Cinnamon.GetMonitorWork
 
 Se conserva el tamaño y la posición del reloj central. Si eliges otra pantalla para el conjunto desde el archivo de configuración, ejecuta de nuevo `runner.py start`. La geometría está pensada para pantallas de escritorio de al menos 1280×720. Las letras permanecen legibles al reflejar el panel. La posición y el tamaño se gestionan con este archivo; las dimensiones de respaldo del editor de Conky Manager no sustituyen el ajuste automático.
 
-Los medidores laterales tienen espacios separados: VRAM, carga GPU, temperaturas GPU/CPU, carga CPU y RAM. Los textos se ajustan a su zona, incluso al mostrar `100%`. Un dock que no reserve espacio en el gestor de ventanas (por ejemplo, con ocultamiento automático) no se descuenta artificialmente; sí se respetan los paneles que reservan área de trabajo.
+Los medidores laterales forman una composición de **círculos entrelazados**: VRAM pasa detrás de la carga GPU, RAM detrás de la carga CPU, y el aro térmico GPU/CPU queda por delante de ambos. Los trazos que continúan detrás se recortan con máscaras transparentes; no se pintan discos sobre el fondo de pantalla. Los dos aros de cuota conservan la silueta de la referencia y las etiquetas coloreadas. Los textos tienen una zona legible incluso al mostrar `100%`, y mantienen su orden de lectura al reflejar el conjunto.
+
+Un dock que no reserve espacio en el gestor de ventanas (por ejemplo, con ocultamiento automático) no se descuenta artificialmente; sí se respetan los paneles que reservan área de trabajo.
 
 ## Límites de las suscripciones: alcance real
 

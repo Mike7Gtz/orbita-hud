@@ -101,6 +101,30 @@ function orbita_draw_clock(cr,width,height,telemetry,usage,audio,stamp)
     cairo_restore(cr)
 end
 
+-- Cut each foreground disk separately: intersecting holes must stay transparent,
+-- rather than reappearing through the XOR of one combined even/odd path.
+function orbita_clear_panel_surface(cr)
+    cairo_save(cr)
+    cairo_set_operator(cr,CAIRO_OPERATOR_CLEAR)
+    cairo_paint(cr)
+    cairo_restore(cr)
+end
+
+function orbita_clip_background(cr,width,height,circles,paint)
+    cairo_save(cr)
+    for _,circle in ipairs(circles) do
+        cairo_new_path(cr)
+        cairo_rectangle(cr,0,0,width,height)
+        cairo_new_sub_path(cr)
+        cairo_arc(cr,circle[1],circle[2],circle[3],0,2*PI)
+        cairo_set_fill_rule(cr,CAIRO_FILL_RULE_EVEN_ODD)
+        cairo_clip(cr)
+    end
+    cairo_new_path(cr)
+    paint()
+    cairo_restore(cr)
+end
+
 function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
     local p=panel
     cairo_save(cr); local scale=math.min(width/p.width,height/p.height)
@@ -121,7 +145,18 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         fn(); cairo_restore(cr)
     end
     local now=stamp or os.time()
-    local function quota(name,title,y)
+    local function quota_line(caption,value,y,size,color)
+        local value=percentage(value)
+        cairo_select_font_face(cr,'DejaVu Sans',CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD)
+        cairo_set_font_size(cr,size)
+        local a=cairo_text_extents_t:create(); local b=cairo_text_extents_t:create()
+        cairo_text_extents(cr,caption,a); cairo_text_extents(cr,value,b)
+        local gap=9; local total=a.width+gap+b.width
+        local start=X(p.quota_text_x)-total/2
+        label(cr,caption,start+a.width/2,y,size,color,CAIRO_FONT_WEIGHT_BOLD,'center')
+        label(cr,value,start+a.width+gap+b.width/2,y,size,white,CAIRO_FONT_WEIGHT_BOLD,'center')
+    end
+    local function quota(name,title,y,lower)
         local observed=number(usage,name..'.observed_at') or 0
         local stale=usage[name..'.stale']~='0' or now-observed>(number(usage,'stale_seconds') or 900)
         local used={}
@@ -130,39 +165,82 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
             used[i]=not stale and (not reset or reset>now) and number(usage,name..'.'..key..'.used') or nil
         end
         shapes(function()
-            ticks(cr,p.quota_x,y,p.quota_outer_radius,-72,-216,90,used[1],cyan,2.5,p.quota_outer_span)
-            ticks(cr,p.quota_x,y,p.quota_inner_radius,-72,-216,90,used[2],{.53,.77,1},2,p.quota_inner_span)
+            local start=lower and -90 or -72
+            ticks(cr,p.quota_x,y,p.quota_outer_radius,start,-198,90,used[1],cyan,2.5,p.quota_outer_span)
+            ticks(cr,p.quota_x,y,p.quota_inner_radius,start,-198,90,used[2],{.70,.86,1},2.3,p.quota_inner_span)
         end)
-        text(title,170,y-44,25,white,CAIRO_FONT_WEIGHT_BOLD)
+        text(title,p.quota_text_x,y-48,25,white,CAIRO_FONT_WEIGHT_BOLD)
         local hours=(number(usage,name..'.session.minutes') or 300)/60
-        text(string.format('%g h   ',hours)..percentage(used[1]),167,y-2,20,white,CAIRO_FONT_WEIGHT_BOLD)
-        text('Semanal   '..percentage(used[2]),167,y+39,18,white,CAIRO_FONT_WEIGHT_BOLD)
+        quota_line(string.format('%g h',hours),used[1],y-2,20,cyan)
+        quota_line('Semanal',used[2],y+39,18,{.35,.72,1})
         local source=usage[name..'.source'] or ''
         local note=stale and 'Sin lectura vigente' or (name=='chatgpt' and 'Cuota Codex' or (source=='imported' and 'Lectura importada' or 'Suscripción'))
-        text(note,167,y+70,10,muted)
+        text(note,p.quota_text_x,y+75,10,muted)
     end
-    quota('chatgpt','ChatGPT',p.quota_top_y)
-    quota('claude','Claude',p.quota_bottom_y)
-    local function gauge(caption,key,y)
+    quota('chatgpt','ChatGPT',p.quota_top_y,false)
+    quota('claude','Claude',p.quota_bottom_y,true)
+    local outer=p.gauge_radius+p.gauge_span
+    local thermal_outer=p.temperature_radius+p.temperature_span
+    local thermal_mask={p.temperature_x,p.temperature_y,thermal_outer+p.occlusion_gap}
+    local gpu_mask={p.gauge_x,p.gpu_y,outer+p.occlusion_gap}
+    local cpu_mask={p.gauge_x,p.cpu_y,outer+p.occlusion_gap}
+    local function gauge_ring(key,y,upper,masks)
         local v=number(telemetry,key)
-        shapes(function() ticks(cr,p.gauge_x,y,p.gauge_radius,90,180,58,v,{.02,1,.64},2.5,p.gauge_span) end)
-        text(caption,p.gauge_text_x,y-18,14,white,CAIRO_FONT_WEIGHT_BOLD,p.gauge_text_width)
-        text(percentage(v),p.gauge_text_x,y+18,28,white,CAIRO_FONT_WEIGHT_BOLD,p.gauge_text_width)
+        shapes(function()
+            orbita_clip_background(cr,p.width,p.height,masks,function()
+                -- A complete circle continues behind the next disk and off screen.
+                -- The visible half advances from the top (GPU) or bottom (CPU).
+                local filled=v and math.floor(math.max(0,math.min(100,v))*p.gauge_count/200+.5) or 0
+                for i=0,p.gauge_count-1 do
+                    local angle=((upper and -90 or 90)+(upper and -1 or 1)*360*i/p.gauge_count)*PI/180
+                    local x1,y1=polar(p.gauge_x,y,p.gauge_radius,angle)
+                    local x2,y2=polar(p.gauge_x,y,outer,angle)
+                    line(cr,x1,y1,x2,y2,2.2,i<filled and {.02,1,.64} or muted,i<filled and 1 or .48)
+                end
+            end)
+        end)
     end
-    gauge('VRAM','vram.percent',p.vram_y)
-    gauge('GPU','gpu.load',p.gpu_y)
-    gauge('CPU','cpu.load',p.cpu_y)
-    gauge('RAM','ram.percent',p.ram_y)
+    gauge_ring('vram.percent',p.vram_y,true,{gpu_mask,thermal_mask})
+    gauge_ring('ram.percent',p.ram_y,false,{cpu_mask,thermal_mask})
+    gauge_ring('gpu.load',p.gpu_y,true,{thermal_mask})
+    gauge_ring('cpu.load',p.cpu_y,false,{thermal_mask})
     local gpu=number(telemetry,'gpu.temperature'); local cpu=number(telemetry,'cpu.temperature')
+    local function thermal(value,upper)
+        local stops={{0,.80,1},{.16,.43,1},{.64,.30,1},{.97,.22,.63},{1,.32,.19}}
+        local edge_angle=math.acos(math.max(-1,math.min(1,(p.width-p.temperature_x)/thermal_outer)))*180/PI
+        local visible_fraction=math.max(.01,(178-edge_angle)/176)
+        for i=0,71 do
+            local fraction=i/71
+            local progress=math.min(1,fraction/visible_fraction)
+            local v=(upper and progress or 1-progress)*4
+            local index=math.min(4,math.floor(v)+1); local k=v-(index-1)
+            local a,b=stops[index],stops[index+1]
+            local c={a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k,a[3]+(b[3]-a[3])*k}
+            local angle=((upper and 182 or 178)+(upper and 176 or -176)*fraction)*PI/180
+            local x1,y1=polar(p.temperature_x,p.temperature_y,p.temperature_radius,angle)
+            local x2,y2=polar(p.temperature_x,p.temperature_y,thermal_outer,angle)
+            local alpha=value and (progress<=math.max(0,math.min(1,value/120)) and 1 or .55) or .30
+            line(cr,x1,y1,x2,y2,3,value and c or muted,alpha)
+        end
+    end
     shapes(function()
-        ticks(cr,p.temperature_x,p.temperature_y,p.temperature_radius,182,88,42,gpu and gpu/120*100,nil,3,p.temperature_span,true)
-        ticks(cr,p.temperature_x,p.temperature_y,p.temperature_radius,178,-88,42,cpu and cpu/120*100,nil,3,p.temperature_span,true)
+        thermal(gpu,true); thermal(cpu,false)
     end)
-    text('GPU',p.temperature_text_x,443,16,white,CAIRO_FONT_WEIGHT_BOLD)
-    text(temperature(gpu),p.temperature_text_x,481,32,white,CAIRO_FONT_WEIGHT_BOLD,p.temperature_text_width)
-    line(cr,X(345),500,X(453),500,1,muted,.6)
+    local function gauge_label(caption,key,y,upper)
+        local label_offset=upper and p.gauge_label_upper or p.gauge_label_lower
+        local value_offset=upper and p.gauge_value_upper or p.gauge_value_lower
+        text(caption,p.gauge_text_x,y+label_offset,15,white,CAIRO_FONT_WEIGHT_BOLD,p.gauge_text_width)
+        text(percentage(number(telemetry,key)),p.gauge_text_x,y+value_offset,32,white,CAIRO_FONT_WEIGHT_BOLD,p.gauge_text_width)
+    end
+    gauge_label('VRAM','vram.percent',p.vram_y,true)
+    gauge_label('GPU','gpu.load',p.gpu_y,true)
+    gauge_label('CPU','cpu.load',p.cpu_y,false)
+    gauge_label('RAM','ram.percent',p.ram_y,false)
+    text('GPU',p.temperature_text_x,425,16,white,CAIRO_FONT_WEIGHT_BOLD)
+    text(temperature(gpu),p.temperature_text_x,465,34,white,CAIRO_FONT_WEIGHT_BOLD,p.temperature_text_width)
+    line(cr,X(335),500,X(453),500,1,muted,.6)
     text('CPU',p.temperature_text_x,535,16,white,CAIRO_FONT_WEIGHT_BOLD)
-    text(temperature(cpu),p.temperature_text_x,574,32,white,CAIRO_FONT_WEIGHT_BOLD,p.temperature_text_width)
+    text(temperature(cpu),p.temperature_text_x,575,34,white,CAIRO_FONT_WEIGHT_BOLD,p.temperature_text_width)
     cairo_restore(cr)
 end
 
@@ -178,8 +256,18 @@ local function draw(kind)
     local data=read('telemetry',6); local usage=read('usage',900); local audio=read('audio',2)
     if kind=='clock' then orbita_draw_clock(cr,w.width,w.height,data,usage,audio)
     else
-        cairo_translate(cr,1,1)
-        orbita_draw_panel(cr,w.width-2,w.height-2,data,usage,audio)
+        -- Render the complete transparent frame in memory. Xlib/Conky back buffers
+        -- must receive the cleared holes too, not just the newly painted ticks.
+        local frame=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,w.width,w.height)
+        local frame_cr=cairo_create(frame)
+        orbita_clear_panel_surface(frame_cr)
+        cairo_translate(frame_cr,1,1)
+        orbita_draw_panel(frame_cr,w.width-2,w.height-2,data,usage,audio)
+        cairo_destroy(frame_cr)
+        cairo_set_operator(cr,CAIRO_OPERATOR_SOURCE)
+        cairo_set_source_surface(cr,frame,0,0)
+        cairo_paint(cr)
+        cairo_surface_destroy(frame)
     end
     cairo_destroy(cr); cairo_surface_destroy(surface)
 end

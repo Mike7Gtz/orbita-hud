@@ -1,5 +1,17 @@
 # Cambios
 
+## 0.1.2
+
+Corrección de [#2](https://github.com/Mike7Gtz/orbita-hud/issues/2): recuperar la composición entrelazada de la referencia, que 0.1.1 había convertido en semicírculos separados.
+
+- Círculos grandes de VRAM y RAM que continúan detrás de los medidores de carga GPU y CPU. El aro térmico pasa por delante del conjunto central.
+- Recorte por capas con fondo transparente, incluyendo las zonas donde coinciden varias máscaras. No se usan discos opacos para tapar trazos.
+- Limpieza del lienzo lateral antes de cada repintado para evitar rastros de cuadros anteriores en las zonas recién transparentes.
+- Silueta de los aros de cuota y etiquetas de 5 h/semanal en cian y azul con porcentajes blancos. El orden de lectura se conserva a la izquierda.
+- Aro térmico con gradiente cian/azul/violeta/rojo en su parte visible. La intensidad de avance mantiene la lectura real y la escala de 0–120 °C.
+- Se mantienen el reloj y el ajuste automático al área útil de 0.1.1. Vistas públicas regeneradas con el renderizador real y datos de ejemplo.
+- Pruebas de superposición intencionada, zonas de texto y recorte real Cairo, además de las comprobaciones de sensores y geometría existentes.
+
 ## 0.1.1
 
 Corrección de [#1](https://github.com/Mike7Gtz/orbita-hud/issues/1): los tacómetros se cruzaban y el panel no descontaba el menú de Cinnamon.

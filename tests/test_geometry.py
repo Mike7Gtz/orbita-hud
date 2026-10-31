@@ -92,7 +92,7 @@ class GaugeClearanceTests(unittest.TestCase):
             if line and not line.startswith('#'):
                 k,v=line.split('=',1); cls.p[k]=float(v)
 
-    def test_adjacent_hardware_arcs_have_clearance(self):
+    def test_circles_overlap_to_form_the_reference_silhouette(self):
         p=self.p
         small=p['gauge_radius']+p['gauge_span']
         temp=p['temperature_radius']+p['temperature_span']
@@ -100,7 +100,10 @@ class GaugeClearanceTests(unittest.TestCase):
         self.assertGreaterEqual(circles[0][0]-circles[0][1],10)
         self.assertLessEqual(circles[-1][0]+circles[-1][1],p['height']-10)
         for (y1,r1),(y2,r2) in zip(circles,circles[1:]):
-            self.assertGreaterEqual(y2-r2-(y1+r1),6)
+            distance=((y2-y1)**2+(p['gauge_x']-p['temperature_x'])**2)**.5
+            self.assertLess(distance,r1+r2)
+            self.assertGreater(distance,abs(r1-r2))
+        self.assertGreater(small,150)
 
     def test_percentages_fit_inside_arcs_even_at_100_percent(self):
         p=self.p
@@ -111,6 +114,22 @@ class GaugeClearanceTests(unittest.TestCase):
         self.assertGreaterEqual(p['temperature_text_x']-p['temperature_text_width']/2,
                                 p['temperature_x']-p['temperature_radius']+5)
         self.assertLessEqual(p['temperature_text_x']+p['temperature_text_width']/2,p['width']-5)
+
+    def test_hardware_text_is_inside_its_ring_and_clear_of_the_foreground(self):
+        p=self.p
+        thermal=(p['temperature_x'],p['temperature_y'],p['temperature_radius']+p['temperature_span'])
+        gpu=(p['gauge_x'],p['gpu_y'],p['gauge_radius']+p['gauge_span'])
+        cpu=(p['gauge_x'],p['cpu_y'],p['gauge_radius']+p['gauge_span'])
+        for key,upper,front in [('vram_y',True,gpu),('gpu_y',True,thermal),('cpu_y',False,thermal),('ram_y',False,cpu)]:
+            cy=p[key]
+            for width,height,offset in [(50,16,p['gauge_label_upper' if upper else 'gauge_label_lower']),
+                                        (p['gauge_text_width'],34,p['gauge_value_upper' if upper else 'gauge_value_lower'])]:
+                x1=p['gauge_text_x']-width/2; x2=x1+width
+                y2=cy+offset; y1=y2-height
+                for x,y in [(x1,y1),(x1,y2),(x2,y1),(x2,y2)]:
+                    self.assertLess(((x-p['gauge_x'])**2+(y-cy)**2)**.5,p['gauge_radius']-4)
+                x=max(x1,min(x2,front[0])); y=max(y1,min(y2,front[1]))
+                self.assertGreater(((x-front[0])**2+(y-front[1])**2)**.5,front[2]+4)
 
     def test_upper_and_lower_halves_are_symmetric(self):
         p=self.p
