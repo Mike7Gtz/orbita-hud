@@ -16,7 +16,7 @@ Crea `~/.claude/usage-statusline.sh` y añade `statusLine` a `~/.claude/settings
 
 El script delega a `runner.py claude-statusline`: recibe JSON, muestra un resumen en terminal y guarda únicamente porcentajes, reinicios, fecha y una huella de actualización en **`~/.claude/usage.json`**, con permisos 600. Descarta rutas de proyectos, identificadores de sesión y el resto del contexto.
 
-No configura `refreshInterval`: repetir una entrada en memoria no equivale a consultar al servidor. Si coinciden cuotas, sesión y duración acumulada de llamadas API, conserva la fecha anterior. El visor lee el archivo cada segundo, muestra su antigüedad y deja de usarlo tras `stale_seconds` (900 por defecto).
+No configura `refreshInterval`: repetir una entrada en memoria no equivale a consultar al servidor. Si coinciden cuotas, sesión y duración acumulada de llamadas API, conserva la fecha anterior. El visor lee el archivo cada segundo, muestra su antigüedad y marca la lectura como antigua tras `stale_seconds` (900 por defecto). La sesión vencida se oculta. El semanal se conserva como **«Última lectura»** hasta su reset conocido, manteniendo su fecha real; no se convierte en una consulta nueva.
 
 **Requisito si no usas Claude Code:** instalar/abrir Claude Code e iniciar tu sesión de suscripción. El puente no obtiene datos de la web/app ni ejecuta peticiones a modelos por su cuenta. Hasta recibir una entrada real muestra `--`.
 
@@ -55,3 +55,7 @@ Las versiones reutilizables de los scripts están en [contrib/claude](../contrib
 El muestreador consulta cada `interval_seconds`, independientemente del foco o estado de la ventana. Busca el ejecutable en PATH, `~/.local/bin/codex` y `/usr/lib/chatgpt/resources/codex` (aplicación Linux); `usage.codex_binary` permite otra ruta explícita. `runner.py doctor` muestra el ejecutable detectado. No se extraen tokens ni se abren conversaciones.
 
 Se usa [account/rateLimits/read de la documentación oficial de OpenAI](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt). No se deben confundir estos límites de Codex con todas las cuotas de modelos de la web de ChatGPT.
+
+## Última lectura semanal
+
+Desde 0.1.5 el límite de antigüedad distingue entre una consulta vigente y el último valor conocido. Un semanal antiguo se sigue mostrando si tiene porcentaje, fecha válida y reset futuro, y la muestra pertenece a esa misma ventana de siete días. Se muestra «Última lectura · hace …» y su cuenta regresiva original. Al reinicio se oculta hasta recibir la nueva lectura; no se traslada el porcentaje a otra semana. No se modifican los scripts del proveedor ni `usage.json`.

@@ -46,7 +46,8 @@ class QuotaTests(unittest.TestCase):
         self.assertIsNone(expired['claude.session.used'])
         self.assertEqual(expired['claude.weekly.used'],18)
         stale=flatten('claude',data,900,now=2000)
-        self.assertIsNone(stale['claude.weekly.used'])
+        self.assertEqual(stale['claude.weekly.used'],18)
+        self.assertEqual(stale['claude.weekly.state'],'last_known')
         self.assertIsNone(flatten('claude',{},900,now=2000)['claude.session.used'])
 
     def test_iso_reset_and_invalid_reset(self):

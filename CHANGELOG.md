@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.1.5
+
+- Corrige la desaparición del semanal al superar la antigüedad configurada. Se conserva el último porcentaje dentro de su ventana semanal conocida, con «Última lectura» y la edad del dato.
+- La cuenta regresiva semanal sigue calculándose con el reset original; no se modifica la fecha de observación. Al alcanzar ese reset deja de mostrar el porcentaje de la semana anterior.
+- Conserva los scripts de Claude y la precisión del reloj de 0.1.4.
+
 ## 0.1.4
 
 - Sesión confirmada sin uso: «Sin iniciar · 0%», independiente de la lectura semanal. Un dato ausente, viejo o vencido no se convierte en cero.

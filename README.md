@@ -6,7 +6,7 @@
 
 [Prueba visual con todos los medidores al 50% del recorrido visible](assets/progress-50.png).
 
-Versión **0.1.4**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
+Versión **0.1.5**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
 
 ## Qué incluye
 
@@ -78,7 +78,7 @@ Un dock que no reserve espacio en el gestor de ventanas (por ejemplo, con oculta
 
 **Claude Code:** incluye un puente para la [línea de estado oficial](https://code.claude.com/docs/en/statusline). Se activa después de instalar el tema con `python3 ~/.conky/Orbita-HUD/runner.py connect-claude`. Prepara `~/.claude/usage-statusline.sh` y lo conecta desde `~/.claude/settings.json`, respaldando y conservando las demás preferencias. El script recibe JSON por stdin y escribe únicamente cuotas saneadas en `~/.claude/usage.json`. Requiere una primera respuesta con `rate_limits` en Claude Code usando una suscripción compatible. No obtiene lecturas de la web/app por sí solo. El visor muestra la antigüedad del dato y `--` hasta recibirlo o cuando caduca. [Contrato y limitaciones](docs/providers.md).
 
-Los arcos representan **porcentaje utilizado**, de 0 a 100. El recorrido se calcula después de descontar las partes ocultas por otras circunferencias y por el borde de la pantalla: un 50% pinta la mitad de las secciones visibles. Una lectura ausente, vencida o con reinicio alcanzado se oculta: nunca se inventa un 0%. Las lecturas caducan por defecto a los 15 minutos. La fila de sesión muestra el tiempo restante en lugar de una etiqueta estática de 5 h; la semanal también informa su reinicio. Los valores de las capturas son ejemplos y no se incluyen en los datos del tema.
+Los arcos representan **porcentaje utilizado**, de 0 a 100. El recorrido se calcula después de descontar las partes ocultas por otras circunferencias y por el borde de la pantalla: un 50% pinta la mitad de las secciones visibles. Una lectura ausente o con reinicio alcanzado se oculta: nunca se inventa un 0%. Una lectura semanal antigua se conserva hasta su reinicio conocido, con la indicación «Última lectura» y su antigüedad; no se presenta como una consulta reciente. Las lecturas caducan por defecto a los 15 minutos. La fila de sesión muestra el tiempo restante en lugar de una etiqueta estática de 5 h; la semanal también informa su reinicio. Los valores de las capturas son ejemplos y no se incluyen en los datos del tema.
 
 ## Sensores y privacidad
 

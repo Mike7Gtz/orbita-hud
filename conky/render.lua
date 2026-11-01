@@ -200,8 +200,10 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         for i,key in ipairs({'session','weekly'}) do
             local reset=number(usage,name..'.'..key..'.reset')
             local state=usage[name..'.'..key..'.state']
-            used[i]=not stale and (state=='idle' or not reset or reset>now) and number(usage,name..'.'..key..'.used') or nil
+            local last_known=key=='weekly' and state=='last_known' and reset and reset>now
+            used[i]=(not stale or last_known) and (state=='idle' or not reset or reset>now) and number(usage,name..'.'..key..'.used') or nil
         end
+        local last_known=stale and used[2]~=nil and usage[name..'.weekly.state']=='last_known'
         shapes(function()
             local start=lower and -90 or -72
             ticks(cr,p.quota_x,y,p.quota_outer_radius,start,-198,90,used[1],cyan,2.5,p.quota_outer_span)
@@ -217,7 +219,7 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         quota_line('Semanal',used[2],y+39,18,{.35,.72,1})
         local week_remaining,week_status=countdown.format(usage[name..'.weekly.reset'],now)
         if week_remaining and usage[name..'.weekly.reset_estimated']=='1' then week_remaining='~ '..week_remaining end
-        local week_caption=not stale and week_remaining and 'Reinicio: '..week_remaining or 'Reinicio semanal: --'
+        local week_caption=(not stale or last_known) and week_remaining and 'Reinicio: '..week_remaining or 'Reinicio semanal: --'
         if not stale and week_status=='expired' then week_caption='Reinicio semanal pendiente' end
         text(week_caption,p.quota_text_x,y+59,10,muted,nil,180)
         local source=usage[name..'.source'] or ''
@@ -227,6 +229,11 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
             local ago=age<60 and 'hace '..math.floor(age)..' s' or 'hace '..math.floor(age/60)..' min'
             note=(stale and 'Lectura vencida · ' or source=='claude-code-statusline' and 'Claude Code · ' or source=='claude-desktop' and 'Claude Desktop · ' or 'Lectura · ')..ago
         elseif name=='claude' then note='Esperando lectura de Claude Code' end
+        if last_known then
+            local age=math.max(0,now-observed)
+            local ago=age>=86400 and math.floor(age/86400)..' d' or age>=3600 and math.floor(age/3600)..' h' or math.floor(age/60)..' min'
+            note='Última lectura · hace '..ago
+        end
         text(note,p.quota_text_x,y+80,10,muted,nil,180)
     end
     quota('chatgpt','ChatGPT',p.quota_top_y,false)
