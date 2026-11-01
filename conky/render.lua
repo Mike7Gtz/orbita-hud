@@ -21,6 +21,7 @@ panel_file:close()
 local visible=dofile(ROOT..'/conky/visible.lua')
 local tracks=visible.panel_tracks(panel)
 local countdown=dofile(ROOT..'/conky/countdown.lua')
+local clock=dofile(ROOT..'/conky/clock.lua')
 local function rgba(cr,c,a) cairo_set_source_rgba(cr,c[1],c[2],c[3],a or 1) end
 local function line(cr,x1,y1,x2,y2,width,c,a)
     rgba(cr,c,a); cairo_set_line_width(cr,width)
@@ -79,18 +80,43 @@ function orbita_draw_clock(cr,width,height,telemetry,usage,audio,stamp)
     if audio.available=='1' then
         for v in (audio.bands or ''):gmatch('[^,]+') do bands[#bands+1]=math.max(0,math.min(1,tonumber(v) or 0)) end
     end
-    local n=math.max(64,#bands)
+    local n=math.max(32,math.min(128,tonumber(audio.count) or (#bands>0 and #bands or 128)))
+    local bar_width=math.min(4,384/n)
     for i=0,n-1 do
         local a=-PI/2+i/n*PI*2; local energy=bands[i+1] or 0
         local r=336; local h=5+energy*54; local c=hue(i/n)
         local x1,y1=polar(400,400,r,a); local x2,y2=polar(400,400,r+h,a)
-        if energy>.04 then line(cr,x1,y1,x2,y2,11,c,.09); line(cr,x1,y1,x2,y2,7,c,.18) end
-        line(cr,x1,y1,x2,y2,4,c,energy>.02 and .95 or .25)
+        if energy>.04 then line(cr,x1,y1,x2,y2,bar_width*2.75,c,.09); line(cr,x1,y1,x2,y2,bar_width*1.75,c,.18) end
+        line(cr,x1,y1,x2,y2,bar_width,c,energy>.02 and .95 or .25)
     end
-    ticks(cr,400,400,306,-90,360,180,nil,cyan,2,7)
-    ticks(cr,400,400,282,-90,360,120,nil,blue,2,5)
-    local t=os.date('*t',stamp or os.time())
-    local fractions={(t.hour%24+t.min/60)/24,(t.min+t.sec/60)/60,t.sec/60}
+    local progress=clock.progress(stamp or clock.now(telemetry))
+    local function calendar_ring(radius,sectors,marks,value,color,span)
+        local sector=2*PI/sectors
+        local gap=3*PI/180
+        for segment=0,sectors-1 do
+            local fraction=clock.segment_fraction(value,segment,sectors)
+            local start=-PI/2+segment*sector+gap/2
+            local sweep=sector-gap
+            for mark=0,marks-1 do
+                local angle=start+sweep*(mark+.5)/marks
+                local filled=clock.segment_fraction(fraction,mark,marks)
+                local x1,y1=polar(400,400,radius,angle)
+                local x2,y2=polar(400,400,radius+span,angle)
+                if filled>=1 then
+                    line(cr,x1,y1,x2,y2,2,color,1)
+                else
+                    line(cr,x1,y1,x2,y2,2,muted,.30)
+                end
+                if filled>0 and filled<1 then
+                    line(cr,x1,y1,x1+(x2-x1)*filled,y1+(y2-y1)*filled,2,color,1)
+                end
+            end
+        end
+    end
+    calendar_ring(306,12,15,progress.year,cyan,7)
+    calendar_ring(282,7,20,progress.week,blue,5)
+    local t=progress.date
+    local fractions={progress.hours,progress.minutes,progress.seconds}
     for i,r in ipairs({254,236,218}) do
         arc(cr,400,400,r,-PI/2,PI*1.5, i==1 and 7 or 2,muted,.3)
         arc(cr,400,400,r,-PI/2,-PI/2+2*PI*fractions[i], i==1 and 7 or 3,i==2 and blue or cyan,1)
@@ -173,7 +199,8 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         local used={}
         for i,key in ipairs({'session','weekly'}) do
             local reset=number(usage,name..'.'..key..'.reset')
-            used[i]=not stale and (not reset or reset>now) and number(usage,name..'.'..key..'.used') or nil
+            local state=usage[name..'.'..key..'.state']
+            used[i]=not stale and (state=='idle' or not reset or reset>now) and number(usage,name..'.'..key..'.used') or nil
         end
         shapes(function()
             local start=lower and -90 or -72
@@ -182,11 +209,14 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         end)
         text(title,p.quota_text_x,y-48,25,white,CAIRO_FONT_WEIGHT_BOLD)
         local remaining,status=countdown.format(usage[name..'.session.reset'],now)
+        if remaining and usage[name..'.session.reset_estimated']=='1' then remaining='~ '..remaining end
         local session_caption=not stale and remaining or 'Sesión --'
         if not stale and status=='expired' then session_caption='Actualizando' end
+        if not stale and (usage[name..'.session.state']=='idle' or (used[1]==0 and status=='unavailable')) then session_caption='Sin iniciar' end
         quota_line(session_caption,used[1],y-2,20,cyan)
         quota_line('Semanal',used[2],y+39,18,{.35,.72,1})
         local week_remaining,week_status=countdown.format(usage[name..'.weekly.reset'],now)
+        if week_remaining and usage[name..'.weekly.reset_estimated']=='1' then week_remaining='~ '..week_remaining end
         local week_caption=not stale and week_remaining and 'Reinicio: '..week_remaining or 'Reinicio semanal: --'
         if not stale and week_status=='expired' then week_caption='Reinicio semanal pendiente' end
         text(week_caption,p.quota_text_x,y+59,10,muted,nil,180)
@@ -195,7 +225,7 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         if name=='claude' and observed>0 then
             local age=math.max(0,now-observed)
             local ago=age<60 and 'hace '..math.floor(age)..' s' or 'hace '..math.floor(age/60)..' min'
-            note=(stale and 'Lectura vencida · ' or source=='claude-code-statusline' and 'Claude Code · ' or 'Lectura · ')..ago
+            note=(stale and 'Lectura vencida · ' or source=='claude-code-statusline' and 'Claude Code · ' or source=='claude-desktop' and 'Claude Desktop · ' or 'Lectura · ')..ago
         elseif name=='claude' then note='Esperando lectura de Claude Code' end
         text(note,p.quota_text_x,y+80,10,muted,nil,180)
     end

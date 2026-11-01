@@ -23,7 +23,7 @@ def choose_monitor(settings, sources, default_sink):
 
 
 class Spectrum:
-    def __init__(self, bars=96, rate=22050, samples=1024, gain=1):
+    def __init__(self, bars=128, rate=22050, samples=1024, gain=1):
         import numpy as np
         self.np, self.bars, self.rate, self.samples, self.gain = np, bars, rate, samples, gain
         self.window = np.hanning(samples)
@@ -83,7 +83,7 @@ class AudioWorker(threading.Thread):
                     if len(raw) != 2048:
                         break
                     values, rms = spectrum.process(raw)
-                    write_state(path, {'generated_at': time.time(), 'available': True, 'rms': round(rms, 6),
+                    write_state(path, {'generated_at': time.time(), 'available': True, 'count': settings['bars'], 'rms': round(rms, 6),
                                        'source': source, 'bands': ','.join(f'{v:.3f}' for v in values)})
                     if time.monotonic()-check > 4:
                         current = subprocess.run(['pactl', 'get-default-sink'], capture_output=True, text=True, timeout=3, env=env).stdout.strip()

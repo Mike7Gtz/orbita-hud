@@ -6,14 +6,14 @@
 
 [Prueba visual con todos los medidores al 50% del recorrido visible](assets/progress-50.png).
 
-Versión **0.1.3**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
+Versión **0.1.4**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
 
 ## Qué incluye
 
-- Reloj de 24 horas con fecha y año en español; tres anillos de avance: horas, minutos y segundos.
-- Halo de 96 bandas que reacciona al **sonido de salida** de la computadora: música, juegos, videos o cualquier aplicación. Sigue la salida predeterminada y no escucha el micrófono. En silencio se atenúa.
+- Reloj de 24 horas con fecha y año en español; cinco anillos de avance continuo: segundos, minutos, horas, semana (7 segmentos, lunes a domingo) y año (12 segmentos, uno por mes y con su duración real).
+- Halo de 128 bandas que reacciona al **sonido de salida** de la computadora: música, juegos, videos o cualquier aplicación. Sigue la salida predeterminada y no escucha el micrófono. En silencio se atenúa.
 - GPU arriba: temperatura, carga global y VRAM utilizada. CPU abajo: temperatura, carga global y RAM general utilizada.
-- Dos arcos por suscripción: ventana corta y semana, con porcentaje usado y cuenta regresiva al reinicio real. Sin barras horizontales.
+- Dos arcos por suscripción: ventana corta y semana, con porcentaje usado y cuenta regresiva al reinicio real. Sin barras horizontales. Si el proveedor confirma 0% y no hay un reinicio activo, muestra «Sin iniciar · 0%».
 - Dos módulos independientes en Conky Manager 2: `conkyrc-clock` y `conkyrc-panel`.
 - Escala proporcional al área útil del monitor principal, conservando círculos redondos y descontando el menú/panel del escritorio. El panel lateral se puede colocar a izquierda o derecha y se reajusta automáticamente cuando cambia el espacio disponible.
 

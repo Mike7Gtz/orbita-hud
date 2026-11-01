@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.1.4
+
+- Sesión confirmada sin uso: «Sin iniciar · 0%», independiente de la lectura semanal. Un dato ausente, viejo o vencido no se convierte en cero.
+- Codex localizado también desde el entorno de Cinnamon sin PATH de terminal. La lectura de cuotas no depende de que la ventana esté en primer plano. Transporte RPC corregido para notificaciones y respuestas recibidas juntas.
+- Compatibilidad con el archivo generado por Claude Desktop: fecha real `sampled_at`, origen visible y conservación de los scripts personales. Versiones reutilizables en `contrib/claude`, sin lecturas privadas.
+- Aros continuos de segundos, minutos y horas con precisión de centésimas y los FPS existentes. Los dos aros exteriores ahora representan semana (7 sectores, lunes primero) y año (12 meses, con años bisiestos).
+- Halo de 128 bandas (antes 96), con el mismo FFT de 1024 muestras y sin aumentar los FPS.
+
 ## 0.1.3
 
 - Porcentaje normalizado sobre la longitud visible tras recortes, incluidas marcas parciales: un 50% pinta la mitad de lo que se ve.

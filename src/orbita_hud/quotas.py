@@ -29,33 +29,58 @@ def normalize_window(value):
         reset = None
     return {'used': max(0, min(100, percent)) if percent is not None else None,
             'reset': reset,
+            'reset_estimated': value.get('resets_at_estimated') is True,
             'minutes': value.get('windowDurationMins', value.get('minutes'))}
 
 
-def codex_usage(sock='', timeout=15):
+def codex_binary(configured=''):
+    """Desktop launchers do not necessarily inherit the interactive PATH."""
+    if configured:
+        path = Path(configured).expanduser()
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
+        raise RuntimeError('codex_binary_not_executable')
+    found = shutil.which('codex')
+    if found:
+        return found
+    for path in (Path.home()/'.local/bin/codex', Path('/usr/lib/chatgpt/resources/codex')):
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
+    raise RuntimeError('codex_not_installed')
+
+
+def codex_usage(sock='', timeout=15, binary=''):
     """Use Codex's documented read-only RPC; never read or export its auth file."""
-    binary = shutil.which('codex')
-    if not binary:
-        raise RuntimeError('codex_not_installed')
+    binary = codex_binary(binary)
     command = [binary, 'app-server', 'proxy', '--sock', sock] if sock else [binary, 'app-server', '--stdio']
     proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True, bufsize=1)
+                            stderr=subprocess.DEVNULL, bufsize=0)
     selector = selectors.DefaultSelector()
     selector.register(proc.stdout, selectors.EVENT_READ)
     deadline = time.monotonic() + timeout
+    pending = bytearray()
     def send(message):
-        proc.stdin.write(json.dumps(message) + '\n')
+        proc.stdin.write((json.dumps(message) + '\n').encode())
         proc.stdin.flush()
     def receive(request_id):
         while time.monotonic() < deadline:
-            if not selector.select(max(0, deadline - time.monotonic())):
-                break
-            line = proc.stdout.readline()
-            if not line:
-                break
+            if b'\n' not in pending:
+                if not selector.select(max(0, deadline - time.monotonic())):
+                    break
+                chunk = os.read(proc.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                pending.extend(chunk)
+                if len(pending) > 1048576:
+                    raise RuntimeError('codex_response_too_large')
+                continue
+            line, _, rest = pending.partition(b'\n')
+            pending[:] = rest
             try:
                 message = json.loads(line)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            if not isinstance(message, dict):
                 continue
             if message.get('id') == request_id:
                 if 'error' in message:
@@ -105,10 +130,11 @@ def claude_usage(cfg):
         source = 'imported'
     if not isinstance(data, dict):
         raise ValueError('claude_invalid_reading')
-    if data.get('source')=='claude-code-statusline': source='claude-code-statusline'
+    if data.get('source') in {'claude-code-statusline', 'claude-desktop'}: source=data['source']
     windows=data.get('rate_limits',data)
     if not isinstance(windows,dict): raise ValueError('claude_invalid_windows')
-    return {'source': source, 'observed_at': data.get('observed_at',data.get('updated_at',0)),
+    # Desktop watcher can rewrite updated_at every minute without a new sample.
+    return {'source': source, 'observed_at': data.get('sampled_at',data.get('observed_at',data.get('updated_at',0))),
             'session': normalize_window(windows.get('session') or windows.get('five_hour')),
             'weekly': normalize_window(windows.get('weekly') or windows.get('seven_day'))}
 
@@ -128,7 +154,12 @@ def flatten(name, data, stale_seconds=900, now=None):
     for key in ['session', 'weekly']:
         w = data.get(key, {})
         expired = w.get('reset') is not None and float(w['reset']) <= now
-        out[f'{name}.{key}.used'] = None if stale or expired else w.get('used')
+        idle = key == 'session' and w.get('used') == 0 and (w.get('reset') is None or (expired and observed >= w['reset']))
+        state = ('stale' if stale else 'idle' if idle else 'expired' if expired
+                 else 'unknown' if w.get('used') is None else 'active')
+        out[f'{name}.{key}.state'] = state
+        out[f'{name}.{key}.used'] = w.get('used') if state in {'idle','active'} else None
         out[f'{name}.{key}.reset'] = w.get('reset')
+        out[f'{name}.{key}.reset_estimated'] = w.get('reset_estimated', False)
         out[f'{name}.{key}.minutes'] = w.get('minutes')
     return out

@@ -17,7 +17,7 @@ language = "es"
 [audio]
 enabled = true
 monitor = "" # vacío sigue la salida de sonido predeterminada; jamás micrófono
-bars = 96
+bars = 128 # más densidad; conserva el FFT de 1024 muestras y los FPS configurados
 gain = 1.0
 
 [usage]
@@ -25,5 +25,6 @@ interval_seconds = 180
 stale_seconds = 900
 codex_enabled = true
 codex_socket = ""
+codex_binary = "" # vacío busca PATH, ~/.local/bin/codex y el binario de la app Linux
 claude_file = ""
 claude_command = [] # lista de argumentos de un proveedor JSON local opcional

@@ -107,6 +107,7 @@ def run():
             signal.signal(sig, lambda *_: stop.set())
         def usage():
             providers = {'chatgpt': None, 'claude': None}
+            errors = {}
             next_codex=0
             next_claude=0
             while not stop.is_set():
@@ -120,14 +121,18 @@ def run():
                         if name == 'chatgpt':
                             if not cfg['usage']['codex_enabled']:
                                 raise RuntimeError('disabled')
-                            providers[name] = codex_usage(cfg['usage']['codex_socket'])
+                            providers[name] = codex_usage(cfg['usage']['codex_socket'], binary=cfg['usage']['codex_binary'])
                         else:
                             providers[name] = claude_usage(cfg)
-                    except (OSError, ValueError, RuntimeError, TimeoutError, subprocess.SubprocessError):
-                        pass
+                        errors[name] = ''
+                    except (OSError, ValueError, RuntimeError, TimeoutError, subprocess.SubprocessError) as error:
+                        # Diagnostics without raw provider responses or credentials.
+                        reason=str(error)
+                        errors[name] = reason if reason in {'codex_not_installed','codex_binary_not_executable','codex_account_unavailable','codex_usage_timeout','claude_not_connected','disabled'} else type(error).__name__
                 values = {'generated_at': time.time(), 'stale_seconds': cfg['usage']['stale_seconds']}
                 for name, data in providers.items():
                     values.update(flatten(name, data or {}, cfg['usage']['stale_seconds']))
+                    values[name+'.error'] = errors.get(name, '')
                 write_state(folder/'usage.state', values)
                 stop.wait(1)
         audio = AudioWorker(cfg, folder, stop)
@@ -153,6 +158,9 @@ def run():
                     except (ValueError, OSError):
                         pass
                 values = apply_temperature_scales(collector.sample(),cfg)
+                # /proc/uptime and CLOCK_BOOTTIME include suspend. The renderer
+                # interpolates between samples without spawning a clock process.
+                values['clock.boottime'] = time.clock_gettime(time.CLOCK_BOOTTIME)
                 values['side'] = cfg['appearance']['side']
                 write_state(folder/'telemetry.state', values)
                 if time.monotonic() >= next_layout:

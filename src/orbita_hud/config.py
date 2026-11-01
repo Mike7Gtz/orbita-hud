@@ -10,9 +10,9 @@ DEFAULT = {
     'temperature': {'cpu_max_c': 0, 'gpu_max_c': 0, 'fallback_max_c': 100},
     'appearance': {'side': 'right', 'monitor': '', 'top_margin': 18, 'bottom_margin': 18,
                    'clock_scale': 0.82, 'opacity': 0, 'language': 'es', 'fps': 25},
-    'audio': {'enabled': True, 'monitor': '', 'bars': 96, 'gain': 1.0},
+    'audio': {'enabled': True, 'monitor': '', 'bars': 128, 'gain': 1.0},
     'usage': {'interval_seconds': 180, 'stale_seconds': 900, 'codex_enabled': True,
-              'codex_socket': '', 'claude_file': '', 'claude_command': []},
+              'codex_socket': '', 'codex_binary': '', 'claude_file': '', 'claude_command': []},
 }
 
 

@@ -14,8 +14,8 @@ with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED) as z:
         tracked=subprocess.check_output(['git','ls-files','-z'],cwd=ROOT).decode().split('\0')
         files=[ROOT/name for name in tracked if name]
     else:
-        top={'README.md','CREDITS.md','LICENSE','.gitignore','install.sh','runner.py','config.example.toml','conkyrc-clock','conkyrc-panel'}
-        folders={'src','scripts','tests','docs','assets','conky','.github'}
+        top={'README.md','CHANGELOG.md','CREDITS.md','LICENSE','.gitignore','install.sh','runner.py','config.example.toml','conkyrc-clock','conkyrc-panel'}
+        folders={'src','scripts','tests','docs','assets','conky','contrib','.github'}
         files=[f for f in ROOT.rglob('*') if f.relative_to(ROOT).parts[0] in folders or f.name in top]
     for file in sorted(files):
         rel=file.relative_to(ROOT)

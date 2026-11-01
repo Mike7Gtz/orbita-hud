@@ -38,7 +38,7 @@ def main():
         folder=Path(tmp)
         script=folder/'preview.lua'
         # Synthetic FFT and percentages exist ONLY in this explicitly labeled preview.
-        bands=','.join(f'{.15+.72*abs(math.sin(i*.31)*math.cos(i*.117)):.3f}' for i in range(96))
+        bands=','.join(f'{.15+.72*abs(math.sin(i*.31)*math.cos(i*.117)):.3f}' for i in range(128))
         script.write_text(f'''dofile({lua_string(ROOT/'conky/render.lua')})
 function conky_preview()
  local s=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,{args.width},{args.height})

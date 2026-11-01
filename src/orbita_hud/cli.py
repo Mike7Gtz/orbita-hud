@@ -104,6 +104,12 @@ def doctor():
     result = {name: bool(shutil.which(name)) for name in ('conky', 'python3', 'xrandr', 'xprop', 'gdbus', 'pactl', 'parec', 'codex')}
     result['numpy'] = importlib.util.find_spec('numpy') is not None
     cfg=load(); screen=monitor(cfg); area=workarea(screen)
+    from .quotas import codex_binary
+    try:
+        result['codex_binary'] = codex_binary(cfg['usage']['codex_binary'])
+        result['codex'] = True
+    except RuntimeError:
+        result['codex_binary'] = None
     result['workarea'] = area
     result['layout'] = layout(cfg, 'panel', screen, area)
     print(json.dumps(result, indent=2, ensure_ascii=False))

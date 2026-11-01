@@ -1,6 +1,6 @@
 # Lecturas de uso y reinicios
 
-Se muestra porcentaje **utilizado** y tiempo restante hasta el reinicio informado por el proveedor. El tiempo usa segundos Unix. Un reinicio alcanzado oculta la lectura vencida; no se supone un 0% hasta recibirlo realmente.
+Se muestra porcentaje **utilizado** y tiempo restante hasta el reinicio informado por el proveedor. El tiempo usa segundos Unix. Un reinicio alcanzado oculta la lectura vencida; no se supone un 0% hasta recibirlo realmente. Una lectura vigente con **0% y sin reset activo** muestra **«Sin iniciar · 0%»**, tanto para Claude como para Codex. No se inicia una cuenta atrás de cinco horas hasta que el proveedor informe un reinicio.
 
 ## Claude Code: puente de línea de estado
 
@@ -43,3 +43,15 @@ Se conserva `~/.config/orbita-hud/claude-usage.json` como respaldo cuando no exi
 ## Codex
 
 Se usa el CLI oficial y `account/rateLimits/read`: inicialización, lectura y cierre del proceso auxiliar. No crea conversaciones. Solo conserva porcentajes, reinicios y fecha de lectura. La cuota mostrada es la de **Codex**, no los límites de todos los modelos de chatgpt.com. Si falla la consulta, la última lectura conserva su fecha y caduca.
+
+## Claude Desktop y scripts personales
+
+Se admite el archivo del lector preparado por Claude con `source: "claude-desktop"`, `five_hour` / `seven_day` y `sampled_at` (segundos Unix). Se da prioridad a **`sampled_at`** frente a `updated_at`: recalcular un temporizador cada minuto no cambia la antigüedad de la consulta. La fecha y la caducidad siguen siendo visibles. Si Desktop obtiene muestras cada 15 minutos, conviene usar `stale_seconds = 1800` para dar margen a ese intervalo; un muestreador detenido seguirá caducando.
+
+Las versiones reutilizables de los scripts están en [contrib/claude](../contrib/claude/README.md); no se instalan sobre las personalizaciones del usuario. Los resets calculados desde el historial o un horario local son estimaciones, no datos exactos del servidor. No se incluye el JSON personal ni el identificador de organización en el repositorio.
+
+## Consulta de Codex sin ventana visible
+
+El muestreador consulta cada `interval_seconds`, independientemente del foco o estado de la ventana. Busca el ejecutable en PATH, `~/.local/bin/codex` y `/usr/lib/chatgpt/resources/codex` (aplicación Linux); `usage.codex_binary` permite otra ruta explícita. `runner.py doctor` muestra el ejecutable detectado. No se extraen tokens ni se abren conversaciones.
+
+Se usa [account/rateLimits/read de la documentación oficial de OpenAI](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt). No se deben confundir estos límites de Codex con todas las cuotas de modelos de la web de ChatGPT.
