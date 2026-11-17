@@ -52,4 +52,37 @@ end
                 self.assertGreater(alpha.crop((295,325,315,335)).getextrema()[1],0)
 
 
+class RenderMemoryTests(unittest.TestCase):
+    def test_text_measurements_reuse_one_cairo_allocation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp); script=folder/'memory.lua'; rc=folder/'memory.conf'
+            script.write_text(f'''require 'cairo'
+local extents_type=cairo_text_extents_t
+local allocations=0
+cairo_text_extents_t={{create=function()
+    allocations=allocations+1
+    return extents_type:create()
+end}}
+dofile({lua(ROOT/'conky/render.lua')})
+function conky_test_memory()
+    local surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,800,1000)
+    local cr=cairo_create(surface)
+    local now=1793389320
+    local usage={{['claude.stale']='0',['claude.observed_at']=tostring(now),
+        ['claude.session.used']='68',['claude.weekly.used']='42'}}
+    for frame=1,12 do
+        orbita_draw_clock(cr,800,800,{{}},{{}},{{}},now+frame/25)
+        orbita_draw_panel(cr,460,1000,{{}},usage,{{}},now)
+    end
+    cairo_destroy(cr)
+    cairo_surface_destroy(surface)
+    print('Text extents allocations: '..allocations)
+end
+''')
+            rc.write_text(f"conky.config={{out_to_x=false,out_to_console=true,total_run_times=1,"
+                          f"lua_load={lua(script)},lua_startup_hook='test_memory'}};conky.text=' ';\n")
+            result=subprocess.run(['conky','-c',str(rc)],capture_output=True,text=True,check=True,timeout=10)
+            self.assertIn('Text extents allocations: 1\n',result.stdout)
+
+
 if __name__=='__main__': unittest.main()

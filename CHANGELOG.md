@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.1.6
+
+- Corrige una fuga de memoria en el reloj y el panel de Conky. El renderizador reutiliza la estructura de Cairo que mide los textos en cada cuadro.
+- Reinicia los módulos de Órbita HUD después de instalar la actualización para que Conky cargue la corrección.
+
 ## 0.1.5
 
 - Corrige la desaparición del semanal al superar la antigüedad configurada. Se conserva el último porcentaje dentro de su ventana semanal conocida, con «Última lectura» y la edad del dato.

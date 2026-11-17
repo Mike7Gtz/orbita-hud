@@ -22,6 +22,8 @@ local visible=dofile(ROOT..'/conky/visible.lua')
 local tracks=visible.panel_tracks(panel)
 local countdown=dofile(ROOT..'/conky/countdown.lua')
 local clock=dofile(ROOT..'/conky/clock.lua')
+-- Conky's Cairo binding does not reclaim these native allocations per frame.
+local text_extents=cairo_text_extents_t:create()
 local function rgba(cr,c,a) cairo_set_source_rgba(cr,c[1],c[2],c[3],a or 1) end
 local function line(cr,x1,y1,x2,y2,width,c,a)
     rgba(cr,c,a); cairo_set_line_width(cr,width)
@@ -35,9 +37,11 @@ end
 local function label(cr,text,x,y,size,c,weight,align)
     cairo_select_font_face(cr,'DejaVu Sans',CAIRO_FONT_SLANT_NORMAL,weight or CAIRO_FONT_WEIGHT_NORMAL)
     cairo_set_font_size(cr,size)
-    local e=cairo_text_extents_t:create(); cairo_text_extents(cr,tostring(text),e)
-    if align=='center' then x=x-e.width/2-e.x_bearing elseif align=='right' then x=x-e.width-e.x_bearing end
-    rgba(cr,c or white); cairo_move_to(cr,x,y); cairo_show_text(cr,tostring(text))
+    text=tostring(text)
+    cairo_text_extents(cr,text,text_extents)
+    if align=='center' then x=x-text_extents.width/2-text_extents.x_bearing
+    elseif align=='right' then x=x-text_extents.width-text_extents.x_bearing end
+    rgba(cr,c or white); cairo_move_to(cr,x,y); cairo_show_text(cr,text)
 end
 local function read(name,ttl)
     local data={}; local f=io.open(RUNTIME..'/'..name..'.state','r')
@@ -168,8 +172,8 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         if max_width then
             cairo_select_font_face(cr,'DejaVu Sans',CAIRO_FONT_SLANT_NORMAL,weight or CAIRO_FONT_WEIGHT_NORMAL)
             cairo_set_font_size(cr,size)
-            local e=cairo_text_extents_t:create(); cairo_text_extents(cr,tostring(s),e)
-            if e.width>max_width then size=size*max_width/e.width end
+            cairo_text_extents(cr,tostring(s),text_extents)
+            if text_extents.width>max_width then size=size*max_width/text_extents.width end
         end
         label(cr,s,X(x),y,size,c,weight,'center')
     end
@@ -182,16 +186,18 @@ function orbita_draw_panel(cr,width,height,telemetry,usage,audio,stamp,side)
         local value=percentage(value)
         cairo_select_font_face(cr,'DejaVu Sans',CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD)
         cairo_set_font_size(cr,size)
-        local a=cairo_text_extents_t:create(); local b=cairo_text_extents_t:create()
-        cairo_text_extents(cr,caption,a); cairo_text_extents(cr,value,b)
-        local gap=9; local total=a.width+gap+b.width
+        cairo_text_extents(cr,caption,text_extents)
+        local caption_width=text_extents.width
+        cairo_text_extents(cr,value,text_extents)
+        local value_width=text_extents.width
+        local gap=9; local total=caption_width+gap+value_width
         if total>170 then
             local scale=170/total
-            size=size*scale; a.width=a.width*scale; b.width=b.width*scale; gap=gap*scale; total=170
+            size=size*scale; caption_width=caption_width*scale; value_width=value_width*scale; gap=gap*scale; total=170
         end
         local start=X(p.quota_text_x)-total/2
-        label(cr,caption,start+a.width/2,y,size,color,CAIRO_FONT_WEIGHT_BOLD,'center')
-        label(cr,value,start+a.width+gap+b.width/2,y,size,white,CAIRO_FONT_WEIGHT_BOLD,'center')
+        label(cr,caption,start+caption_width/2,y,size,color,CAIRO_FONT_WEIGHT_BOLD,'center')
+        label(cr,value,start+caption_width+gap+value_width/2,y,size,white,CAIRO_FONT_WEIGHT_BOLD,'center')
     end
     local function quota(name,title,y,lower)
         local observed=number(usage,name..'.observed_at') or 0

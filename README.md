@@ -6,7 +6,7 @@
 
 [Prueba visual con todos los medidores al 50% del recorrido visible](assets/progress-50.png).
 
-Versión **0.1.5**, probada en Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
+Versión **0.1.6**. El tema es compatible con Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
 
 ## Qué incluye
 
