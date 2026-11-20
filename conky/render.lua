@@ -303,8 +303,8 @@ local function draw(kind)
     local w=conky_window
     local surface=cairo_xlib_surface_create(w.display,w.drawable,w.visual,w.width,w.height)
     local cr=cairo_create(surface)
-    local data=read('telemetry',6); local usage=read('usage',900); local audio=read('audio',2)
-    if kind=='clock' then orbita_draw_clock(cr,w.width,w.height,data,usage,audio)
+    local data=read('telemetry',6)
+    if kind=='clock' then orbita_draw_clock(cr,w.width,w.height,data,nil,read('audio',2))
     else
         -- Render the complete transparent frame in memory. Xlib/Conky back buffers
         -- must receive the cleared holes too, not just the newly painted ticks.
@@ -312,7 +312,7 @@ local function draw(kind)
         local frame_cr=cairo_create(frame)
         orbita_clear_panel_surface(frame_cr)
         cairo_translate(frame_cr,1,1)
-        orbita_draw_panel(frame_cr,w.width-2,w.height-2,data,usage,audio)
+        orbita_draw_panel(frame_cr,w.width-2,w.height-2,data,read('usage',900))
         cairo_destroy(frame_cr)
         cairo_set_operator(cr,CAIRO_OPERATOR_SOURCE)
         cairo_set_source_surface(cr,frame,0,0)

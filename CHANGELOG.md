@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.1.7
+
+- Reduce la RAM del halo de audio usando FFTW con búferes reutilizables. NumPy sigue disponible como respaldo. El espectro mantiene su frecuencia de captura, tamaño de bloque, bandas y suavizado.
+- Inicia la captura de audio al activar el reloj. Las consultas de cuotas y lecturas de sensores se realizan al activar el panel lateral.
+
 ## 0.1.6
 
 - Corrige una fuga de memoria en el reloj y el panel de Conky. El renderizador reutiliza la estructura de Cairo que mide los textos en cada cuadro.

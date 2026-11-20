@@ -10,6 +10,7 @@ import sys
 import time
 from .config import load, layout, monitor, workarea, runtime_dir, config_dir, write_state
 from . import daemon
+from .audio import new_spectrum
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -104,6 +105,15 @@ def doctor():
     result = {name: bool(shutil.which(name)) for name in ('conky', 'python3', 'xrandr', 'xprop', 'gdbus', 'pactl', 'parec', 'codex')}
     result['numpy'] = importlib.util.find_spec('numpy') is not None
     cfg=load(); screen=monitor(cfg); area=workarea(screen)
+    result['audio_backend'] = 'disabled'
+    if cfg['audio']['enabled']:
+        try:
+            spectrum = new_spectrum()
+        except ImportError:
+            result['audio_backend'] = None
+        else:
+            result['audio_backend'] = spectrum.backend
+            spectrum.close()
     from .quotas import codex_binary
     try:
         result['codex_binary'] = codex_binary(cfg['usage']['codex_binary'])
@@ -113,7 +123,9 @@ def doctor():
     result['workarea'] = area
     result['layout'] = layout(cfg, 'panel', screen, area)
     print(json.dumps(result, indent=2, ensure_ascii=False))
-    if not all(result[name] for name in ('conky', 'python3', 'xrandr', 'pactl', 'parec', 'numpy')):
+    if not all(result[name] for name in ('conky', 'python3', 'xrandr')):
+        sys.exit(1)
+    if cfg['audio']['enabled'] and not all(result[name] for name in ('pactl', 'parec', 'audio_backend')):
         sys.exit(1)
 
 

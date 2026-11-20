@@ -59,20 +59,27 @@ def stop(root):
         pass
 
 
-def widgets_running(kind=None):
+def active_widgets():
     root = Path(__file__).resolve().parents[2]
-    kinds = [kind] if kind else ['clock', 'panel']
-    expected = {os.fsencode(str(root/f'conkyrc-{k}')) for k in kinds}
+    expected = {os.fsencode(str(root/f'conkyrc-{kind}')): kind for kind in ('clock', 'panel')}
+    active = set()
     for p in Path('/proc').iterdir():
         if not p.name.isdigit():
             continue
         try:
             args = (p/'cmdline').read_bytes().split(b'\0')
-            if args and Path(os.fsdecode(args[0])).name == 'conky' and expected.intersection(args):
-                return True
+            if args and Path(os.fsdecode(args[0])).name == 'conky':
+                active.update(expected[arg] for arg in args if arg in expected)
+                if len(active) == len(expected):
+                    break
         except OSError:
             pass
-    return False
+    return active
+
+
+def widgets_running(kind=None):
+    active = active_widgets()
+    return kind in active if kind else bool(active)
 
 
 class PanelWatcher:
@@ -102,6 +109,7 @@ def run():
         cfg = load()
         stop = threading.Event()
         reload = threading.Event()
+        panel_active = threading.Event()
         signal.signal(signal.SIGHUP, lambda *_: reload.set())
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, lambda *_: stop.set())
@@ -111,7 +119,13 @@ def run():
             next_codex=0
             next_claude=0
             while not stop.is_set():
+                if not panel_active.is_set():
+                    next_codex = next_claude = 0
+                    panel_active.wait(1)
+                    continue
                 for name in providers:
+                    if stop.is_set() or not panel_active.is_set():
+                        break
                     current=time.monotonic()
                     if name=='chatgpt' and current<next_codex: continue
                     if name=='claude' and current<next_claude: continue
@@ -133,13 +147,13 @@ def run():
                 for name, data in providers.items():
                     values.update(flatten(name, data or {}, cfg['usage']['stale_seconds']))
                     values[name+'.error'] = errors.get(name, '')
-                write_state(folder/'usage.state', values)
+                if panel_active.is_set():
+                    write_state(folder/'usage.state', values)
                 stop.wait(1)
-        audio = AudioWorker(cfg, folder, stop)
-        audio.start()
+        audio = None
+        audio_stop = threading.Event()
         thread = threading.Thread(target=usage, name='orbita-quotas', daemon=True)
-        thread.start()
-        collector = Collector()
+        collector = None
         last_widget = time.monotonic()
         next_layout = 0
         root = Path(__file__).resolve().parents[2]
@@ -153,27 +167,53 @@ def run():
                         audio_changed = new['audio'] != cfg['audio']
                         for key in cfg:
                             cfg[key].update(new[key])
-                        if audio_changed:
-                            audio.close()
+                        if audio_changed and audio:
+                            audio_stop.set()
                     except (ValueError, OSError):
                         pass
-                values = apply_temperature_scales(collector.sample(),cfg)
+                active = active_widgets()
+                capture_audio = 'clock' in active and cfg['audio']['enabled']
+                if audio and (not capture_audio or audio_stop.is_set()):
+                    audio_stop.set()
+                    audio.close()
+                if audio and not audio.is_alive():
+                    audio = None
+                if capture_audio and audio is None:
+                    audio_stop = threading.Event()
+                    audio = AudioWorker(cfg, folder, audio_stop)
+                    audio.start()
+
+                values = {'generated_at': time.time()}
+                if 'panel' in active:
+                    panel_active.set()
+                    if collector is None:
+                        collector = Collector()
+                    if thread.ident is None:
+                        thread.start()
+                    values = apply_temperature_scales(collector.sample(), cfg)
+                else:
+                    panel_active.clear()
+                    collector = None
+                    watcher.previous = None
                 # /proc/uptime and CLOCK_BOOTTIME include suspend. The renderer
                 # interpolates between samples without spawning a clock process.
                 values['clock.boottime'] = time.clock_gettime(time.CLOCK_BOOTTIME)
                 values['side'] = cfg['appearance']['side']
                 write_state(folder/'telemetry.state', values)
-                if time.monotonic() >= next_layout:
+                if 'panel' in active and time.monotonic() >= next_layout:
                     watcher.poll()
                     next_layout = time.monotonic()+3
-                if widgets_running():
+                if active:
                     last_widget = time.monotonic()
                 elif time.monotonic()-last_widget > 60:
                     break
                 stop.wait(1)
         finally:
             stop.set()
-            audio.close()
-            audio.join(timeout=5)
-            thread.join(timeout=20)
+            if audio:
+                audio_stop.set()
+                audio.close()
+                audio.join(timeout=8)
+            if thread.ident is not None:
+                thread.join(timeout=20)
             (folder/'daemon.pid').unlink(missing_ok=True)

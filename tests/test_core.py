@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from orbita_hud.config import load, layout, parse_monitors, write_state
 from orbita_hud.quotas import normalize_window, flatten, claude_usage
-from orbita_hud.audio import Spectrum, choose_monitor
+from orbita_hud.audio import FftwSpectrum, Spectrum, choose_monitor, new_spectrum
 from orbita_hud.telemetry import cpu_temperature, memory_metrics, Collector
 
 
@@ -106,6 +106,30 @@ class AudioTests(unittest.TestCase):
         self.assertGreater(max(v),.5); self.assertLessEqual(max(v),1)
         for _ in range(40): v,rms=fft.process(bytes(2048))
         self.assertLess(max(v),.001)
+
+    def test_fftw_preserves_bands_smoothing_and_rms(self):
+        import numpy as np
+
+        for bars, gain in ((32, .5), (128, 1.5)):
+            with self.subTest(bars=bars, gain=gain):
+                try:
+                    native = FftwSpectrum(bars=bars, gain=gain)
+                except OSError:
+                    self.skipTest('FFTW not installed')
+                self.addCleanup(native.close)
+                original = Spectrum(bars=bars, gain=gain)
+                tones = [(np.sin(np.arange(1024)*2*math.pi*hz/22050)*16000)
+                         .astype('<i2').tobytes() for hz in (55, 180, 1000, 3500, 8000)]
+                for frame in [bytes(2048), *tones, *([bytes(2048)]*40)]:
+                    expected, expected_rms = original.process(frame)
+                    result, rms = native.process(frame)
+                    np.testing.assert_allclose(result, expected, atol=1e-12, rtol=0)
+                    self.assertAlmostEqual(rms, expected_rms)
+                self.assertIsNone(native.process(b'\x00'))
+
+    def test_spectrum_falls_back_when_fftw_is_unavailable(self):
+        with patch('orbita_hud.audio.FftwSpectrum', side_effect=OSError):
+            self.assertIsInstance(new_spectrum(), Spectrum)
 
     def test_pipewire_pactl_json_uses_device_class(self):
         sources=[{'name':'mic','monitor_source':'','properties':{'device.class':'sound'}},

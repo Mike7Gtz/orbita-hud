@@ -6,7 +6,7 @@
 
 [Prueba visual con todos los medidores al 50% del recorrido visible](assets/progress-50.png).
 
-Versión **0.1.6**. El tema es compatible con Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
+Versión **0.1.7**. El tema es compatible con Linux Mint 22.3 Cinnamon, sesión X11 y Conky 1.19.6. El panel es transparente: el fondo de esta captura es ilustrativo. [Cambios de esta versión](CHANGELOG.md).
 
 ## Qué incluye
 
@@ -25,7 +25,7 @@ Dependencias en Mint/Ubuntu (paquetes de sus repositorios oficiales):
 
 ```bash
 sudo apt update
-sudo apt install conky-all python3 python3-numpy pulseaudio-utils x11-xserver-utils x11-utils libglib2.0-bin fonts-dejavu-core git
+sudo apt install conky-all python3 libfftw3-double3 pulseaudio-utils x11-xserver-utils x11-utils libglib2.0-bin fonts-dejavu-core git
 git clone https://github.com/Mike7Gtz/orbita-hud.git
 cd orbita-hud
 ./install.sh
@@ -33,6 +33,8 @@ python3 ~/.conky/Orbita-HUD/runner.py start
 ```
 
 El instalador no necesita sudo. Copia el tema a `~/.conky/Orbita-HUD`, preserva la configuración personal y respalda una instalación anterior del tema. No detiene otros Conkys. Requiere Python 3.11 o superior y Conky con soporte Lua/Cairo.
+
+El reloj usa FFTW para el espectro y puede usar `python3-numpy` si FFTW no está disponible. Con el panel solo se suspende la captura de audio. Con el reloj solo se suspenden las consultas de cuotas y las lecturas de sensores del panel.
 
 En Conky Manager 2 pulsa **Refresh** y activa los dos archivos. También funcionan por separado. No actives simultáneamente copias del mismo módulo. Para iniciar al entrar a Cinnamon:
 
